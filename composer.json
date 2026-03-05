@@ -2,7 +2,6 @@
     "name": "drupal/entity_webhook",
     "description": "Provides Entity Webhook functionality.",
     "type": "drupal-module",
-    "version": "2.0.0",
     "license": "GPL-2.0+",
     "prefer-stable": true,
     "minimum-stability": "dev",
