@@ -1,0 +1,55 @@
+entity_webhook.webhook_source_type.*:
+  type: config_entity
+  label: 'Webhook Source Type'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    field_mappings:
+      type: sequence
+      label: 'Field Mappings'
+      sequence:
+        type: mapping
+        label: 'Field Mapping'
+        mapping:
+          entity_field:
+            type: string
+            label: 'Entity Field'
+          json_path:
+            type: string
+            label: 'JSONPath Expression'
+          is_identifier:
+            type: boolean
+            label: 'Is Identifier'
+    verification_plugin:
+      type: string
+      label: 'Verification Plugin ID'
+    verification_config:
+      type: sequence
+      label: 'Verification Plugin Configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'
+
+entity_webhook.webhook_endpoint.*:
+  type: config_entity
+  label: 'Webhook Endpoint'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    target_entity_type:
+      type: string
+      label: 'Target Entity Type'
+    source_types:
+      type: sequence
+      label: 'Source Types'
+      sequence:
+        type: string
+        label: 'Source Type ID'

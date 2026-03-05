@@ -1,0 +1,28 @@
+services:
+
+  logger.channel.entity_webhook_polling:
+    parent: logger.channel_base
+    arguments: ['entity_webhook_polling']
+
+  plugin.manager.polling_provider:
+    class: Drupal\entity_webhook_polling\Plugin\PollingProvider\PollingProviderManager
+    parent: default_plugin_manager
+
+  entity_webhook_polling.state_storage:
+    class: Drupal\entity_webhook_polling\Storage\PollingStateStorage
+    arguments:
+      - '@database'
+      - '@datetime.time'
+
+  entity_webhook_polling.cron_expression_service:
+    class: Drupal\entity_webhook_polling\Service\CronExpressionService
+
+  entity_webhook_polling.polling_manager:
+    class: Drupal\entity_webhook_polling\Service\PollingManager
+    arguments:
+      - '@entity_type.manager'
+      - '@plugin.manager.polling_provider'
+      - '@entity_webhook_polling.state_storage'
+      - '@entity_webhook.webhook_queue'
+      - '@entity_webhook_polling.cron_expression_service'
+      - '@logger.channel.entity_webhook_polling'

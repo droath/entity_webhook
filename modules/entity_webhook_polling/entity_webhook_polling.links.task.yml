@@ -1,0 +1,5 @@
+entity_webhook_polling.admin_tab:
+  title: 'Polling'
+  route_name: entity.entity_webhook_polling.collection
+  base_route: entity.webhook_endpoint.collection
+  weight: 10

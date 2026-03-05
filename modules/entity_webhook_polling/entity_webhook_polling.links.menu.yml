@@ -1,0 +1,6 @@
+entity_webhook_polling.admin:
+  title: 'Polling Configurations'
+  description: 'Manage polling configurations for entity webhook.'
+  route_name: entity.entity_webhook_polling.collection
+  parent: entity_webhook.admin
+  weight: 10

@@ -1,0 +1,11 @@
+entity.webhook_endpoint.add_form:
+  route_name: entity.webhook_endpoint.add_form
+  title: 'Add Webhook Endpoint'
+  appears_on:
+    - entity.webhook_endpoint.collection
+
+entity.webhook_source_type.add_form:
+  route_name: entity.webhook_source_type.add_form
+  title: 'Add Source Type'
+  appears_on:
+    - entity.webhook_source_type.collection

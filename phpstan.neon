@@ -14,6 +14,7 @@ parameters:
     - install
   customRulesetUsed: true
   reportUnmatchedIgnoredErrors: false
+  treatPhpDocTypesAsCertain: false
   ignoreErrors:
     - '#iterable type#'
     - '#^Unsafe usage of new static#'

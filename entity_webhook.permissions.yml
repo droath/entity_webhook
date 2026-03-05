@@ -1,0 +1,4 @@
+administer entity_webhook:
+  title: 'Administer Entity Webhook'
+  description: 'Manage webhook endpoints, source types, and configuration.'
+  restrict access: true

@@ -1,0 +1,5 @@
+entity.entity_webhook_polling.add_form:
+  route_name: entity.entity_webhook_polling.add_form
+  title: 'Add Polling Configuration'
+  appears_on:
+    - entity.entity_webhook_polling.collection

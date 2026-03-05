@@ -1,0 +1,8 @@
+php: 8.3
+type: module
+name: Entity Webhook Polling
+description: Provides polling-based webhook ingestion for entity operations via configurable cron expressions and provider plugins.
+core_version_requirement: ^10.3 || ^11
+package: Services
+dependencies:
+  - drupal:entity_webhook

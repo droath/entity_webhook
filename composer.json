@@ -45,16 +45,20 @@
     ],
     "autoload": {
         "psr-4": {
-            "Drupal\\entity_webhook\\": "src/"
+            "Drupal\\entity_webhook\\": "src/",
+            "Drupal\\entity_webhook_polling\\": "modules/entity_webhook_polling/src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Drupal\\Tests\\entity_webhook\\": "tests/src/"
+            "Drupal\\Tests\\entity_webhook\\": "tests/src/",
+            "Drupal\\Tests\\entity_webhook_polling\\": "modules/entity_webhook_polling/tests/src/"
         }
     },
     "require": {
-        "ext-json": "*"
+        "ext-json": "*",
+        "softcreatr/jsonpath": "^0.8",
+        "dragonmantank/cron-expression": "^3.3"
     },
     "require-dev": {
         "composer/installers": "^1 || ^2",

@@ -1,6 +1,6 @@
 php: 8.3
 type: module
 name: Entity Webhook
-description: Provides Entity Webhook functionality.
+description: Provides webhook ingestion and entity upsert functionality for Drupal content entities.
 core_version_requirement: ^10.3 || ^11
-
+package: Services

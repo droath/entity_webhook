@@ -1,0 +1,4 @@
+administer entity_webhook_polling:
+  title: 'Administer Entity Webhook Polling'
+  description: 'Manage polling configurations for entity webhook.'
+  restrict access: true

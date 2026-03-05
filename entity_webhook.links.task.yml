@@ -1,0 +1,9 @@
+entity_webhook.admin_tab:
+  title: 'Endpoints'
+  route_name: entity.webhook_endpoint.collection
+  base_route: entity.webhook_endpoint.collection
+
+entity_webhook.admin_source_types_tab:
+  title: 'Source Types'
+  route_name: entity.webhook_source_type.collection
+  base_route: entity.webhook_endpoint.collection

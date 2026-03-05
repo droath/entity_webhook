@@ -1,0 +1,38 @@
+<?php
+
+/**
+ * @file
+ * Hook implementations for the entity_webhook_polling module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_cron().
+ *
+ * Delegates to the PollingManager service which:
+ *   - Loads all enabled EntityWebhookPolling config entities.
+ *   - Skips any whose cron expression is not currently due.
+ *   - Fetches payloads from each due provider.
+ *   - Queues new or changed payloads for processing.
+ *
+ * A state lock prevents concurrent execution if a previous cron run has not
+ * finished. The lock is released automatically when the request ends if not
+ * explicitly released.
+ */
+function entity_webhook_polling_cron(): void {
+  $lock = \Drupal::lock();
+
+  if (!$lock->acquire('entity_webhook_polling_cron')) {
+    \Drupal::logger('entity_webhook_polling')
+      ->warning('Polling cron skipped: another process holds the lock.');
+    return;
+  }
+
+  try {
+    \Drupal::service('entity_webhook_polling.polling_manager')->runAllDue();
+  }
+  finally {
+    $lock->release('entity_webhook_polling_cron');
+  }
+}

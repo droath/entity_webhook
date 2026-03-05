@@ -1,0 +1,45 @@
+services:
+
+  entity_webhook.webhook_request_validator:
+    class: Drupal\entity_webhook\Validator\WebhookRequestValidator
+    arguments:
+      - '@entity_type.manager'
+
+  logger.channel.entity_webhook:
+    parent: logger.channel_base
+    arguments: ['entity_webhook']
+
+  plugin.manager.webhook_verification:
+    class: Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManager
+    parent: default_plugin_manager
+
+  entity_webhook.json_path_extractor:
+    class: Drupal\entity_webhook\Service\JsonPathExtractor
+
+  entity_webhook.webhook_queue:
+    class: Drupal\entity_webhook\Queue\WebhookQueueService
+    arguments:
+      - '@queue'
+
+  entity_webhook.entity_lookup:
+    class: Drupal\entity_webhook\Service\EntityLookupService
+    arguments:
+      - '@entity_type.manager'
+
+  entity_webhook.entity_upsert:
+    class: Drupal\entity_webhook\Service\EntityUpsertService
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_webhook.entity_lookup'
+
+  entity_webhook.webhook_processor:
+    class: Drupal\entity_webhook\Service\WebhookProcessor
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_webhook.json_path_extractor'
+      - '@entity_webhook.entity_upsert'
+      - '@logger.channel.entity_webhook'
+      - '@event_dispatcher'
+
+  entity_webhook.verification_chain:
+    class: Drupal\entity_webhook\Service\VerificationChain

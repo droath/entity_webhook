@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the entity_webhook_polling module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function entity_webhook_polling_schema(): array {
+  $schema['entity_webhook_polling_state'] = [
+    'description' => 'Tracks previously seen records per polling configuration for hash-based change detection.',
+    'fields' => [
+      'polling_id' => [
+        'description' => 'The EntityWebhookPolling config entity ID.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'external_id' => [
+        'description' => 'The external record identifier provided by the polling provider.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'hash' => [
+        'description' => 'SHA-256 hash of the mapped field values from the last seen fetch.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'last_seen' => [
+        'description' => 'Unix timestamp of the last fetch that observed this record.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+    ],
+    'primary key' => ['polling_id', 'external_id'],
+  ];
+
+  return $schema;
+}

@@ -1,0 +1,8 @@
+name: Entity Webhook Polling Test
+type: module
+description: Test module for entity_webhook_polling kernel tests.
+package: Testing
+core_version_requirement: ^10 || ^11
+dependencies:
+  - entity_webhook:entity_webhook
+  - entity_webhook_polling:entity_webhook_polling

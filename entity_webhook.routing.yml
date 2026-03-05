@@ -1,0 +1,7 @@
+entity_webhook.receive:
+  path: '/webhook/{endpoint_name}/{source_type}'
+  defaults:
+    _controller: '\Drupal\entity_webhook\Controller\WebhookController::receive'
+  methods: [POST]
+  requirements:
+    _access: 'TRUE'

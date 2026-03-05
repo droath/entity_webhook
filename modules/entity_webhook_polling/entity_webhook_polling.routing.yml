@@ -1,0 +1,7 @@
+entity.entity_webhook_polling.collection:
+  path: '/admin/config/services/entity-webhook/polling'
+  defaults:
+    _entity_list: 'entity_webhook_polling'
+    _title: 'Polling Configurations'
+  requirements:
+    _permission: 'administer entity_webhook_polling'
