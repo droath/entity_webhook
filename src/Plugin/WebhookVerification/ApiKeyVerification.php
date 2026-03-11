@@ -26,7 +26,6 @@ use Drupal\entity_webhook\Attribute\WebhookVerification;
   description: new TranslatableMarkup('Verifies requests using an API key from a configurable header or query parameter.'),
 )]
 class ApiKeyVerification extends WebhookVerificationBase {
-
   /** @var string */
   private const string SOURCE_HEADER = 'header';
 
@@ -142,5 +141,4 @@ class ApiKeyVerification extends WebhookVerificationBase {
       ),
     };
   }
-
 }

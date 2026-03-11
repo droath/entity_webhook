@@ -22,7 +22,6 @@ use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerI
  * Provides the add/edit form for WebhookSourceType config entities.
  */
 class WebhookSourceTypeForm extends EntityForm {
-
   use AjaxFormStateTrait;
   use ConfigEntityFormTrait;
 
@@ -307,6 +306,15 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function submitForm(array &$form, FormStateInterface $form_state): void {
+    $this->submitPluginConfigurationForm($form, $form_state);
+
+    parent::submitForm($form, $form_state);
+  }
+
+  /**
    * Resolves the active WebhookEndpoint from the current route parameter.
    *
    * @return \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null
@@ -389,7 +397,7 @@ class WebhookSourceTypeForm extends EntityForm {
     return $this->getFormStateValue(
       'verification_plugin',
       $form_state,
-      $entity->getVerificationPlugin()
+      $entity->getVerificationPlugin(),
     );
   }
 
@@ -431,7 +439,7 @@ class WebhookSourceTypeForm extends EntityForm {
 
     $identifierCount = count(array_filter(
       $nonEmptyMappings,
-      static fn(array $row): bool => !empty($row['is_identifier']),
+      static fn (array $row): bool => !empty($row['is_identifier']),
     ));
 
     if ($identifierCount === 0) {
@@ -484,15 +492,6 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * {@inheritdoc}
-   */
-  public function submitForm(array &$form, FormStateInterface $form_state): void {
-    $this->submitPluginConfigurationForm($form, $form_state);
-
-    parent::submitForm($form, $form_state);
-  }
-
-  /**
    * Runs the verification plugin's submit handler and updates form state.
    *
    * @param array $form
@@ -514,6 +513,7 @@ class WebhookSourceTypeForm extends EntityForm {
       || !isset($form['verification']['verification_config'])
     ) {
       $form_state->setValue('verification_config', []);
+
       return;
     }
 
@@ -802,5 +802,4 @@ class WebhookSourceTypeForm extends EntityForm {
       trim((string) ($form_state->getValue('verification_plugin') ?? '')),
     );
   }
-
 }

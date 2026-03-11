@@ -17,7 +17,6 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * non-identifier (and identifier) field values are written to the entity.
  */
 class EntityUpsertService implements EntityUpsertServiceInterface {
-
   /**
    * Constructs an EntityUpsertService.
    *
@@ -29,7 +28,8 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
   public function __construct(
     protected readonly EntityTypeManagerInterface $entityTypeManager,
     protected readonly EntityLookupServiceInterface $entityLookup,
-  ) {}
+  ) {
+  }
 
   /**
    * {@inheritdoc}
@@ -51,13 +51,6 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
     $entity->save();
 
     return $entity;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function wasCreated(): bool {
-    return $this->lastWasCreated;
   }
 
   /**
@@ -153,11 +146,11 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
    * @param string $bundle
    *   The bundle machine name.
    *
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   *
    * @return \Drupal\Core\Entity\EntityInterface
    *   A new unsaved entity instance.
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   private function createEntity(
     string $entityTypeId,
@@ -212,5 +205,4 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
 
     return $fieldName === $idKey || ($bundleKey && $fieldName === $bundleKey);
   }
-
 }
