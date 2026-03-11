@@ -58,6 +58,7 @@ class WebhookProcessorLoggingTest extends KernelTestBase {
       'id' => 'log_endpoint',
       'label' => 'Log Endpoint',
       'target_entity_type' => 'node',
+      'target_entity_bundle' => 'article',
       'source_types' => ['log_source'],
     ])->save();
 

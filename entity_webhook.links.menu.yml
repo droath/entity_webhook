@@ -12,9 +12,3 @@ entity_webhook.admin_endpoints:
   parent: entity_webhook.admin
   weight: 0
 
-entity_webhook.admin_source_types:
-  title: 'Source Types'
-  description: 'Manage webhook source types.'
-  route_name: entity.webhook_source_type.collection
-  parent: entity_webhook.admin
-  weight: 5

@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook\Service;
 
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\entity_webhook\Event\EntityWebhookEvents;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Drupal\entity_webhook\Event\EntityWebhookPreSaveEvent;
 use Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
 
 /**
  * Orchestrates the full entity upsert pipeline for a single queue item.
@@ -26,8 +27,8 @@ class WebhookProcessor implements WebhookProcessorInterface {
   /**
    * Constructs a WebhookProcessor.
    *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The entity type manager.
+   * @param \Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface $validator
+   *   The webhook request validator used to load config entities.
    * @param \Drupal\entity_webhook\Service\JsonPathExtractorInterface $jsonPathExtractor
    *   The JSONPath extractor service.
    * @param \Drupal\entity_webhook\Service\EntityUpsertServiceInterface $entityUpsert
@@ -38,7 +39,7 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The event dispatcher.
    */
   public function __construct(
-    protected readonly EntityTypeManagerInterface $entityTypeManager,
+    protected readonly WebhookRequestValidatorInterface $validator,
     protected readonly JsonPathExtractorInterface $jsonPathExtractor,
     protected readonly EntityUpsertServiceInterface $entityUpsert,
     protected readonly LoggerChannelInterface $logger,
@@ -51,80 +52,165 @@ class WebhookProcessor implements WebhookProcessorInterface {
    */
   public function process(WebhookQueueItem $item): void {
     $endpoint = $this->loadEndpoint($item->endpointId);
+
     if ($endpoint === NULL) {
       return;
     }
 
     $sourceType = $this->loadSourceType($item->sourceType);
+
     if ($sourceType === NULL) {
       return;
     }
 
-    if (!$endpoint->hasSourceType($item->sourceType)) {
-      $this->logger->warning('Source type @source not associated with endpoint @endpoint.', [
-        '@source' => $item->sourceType,
-        '@endpoint' => $item->endpointId,
-      ]);
-
+    if (!$this->validateSourceTypeAssociation($endpoint, $item)) {
       return;
     }
 
     try {
-      $extractedValues = $this->extractFieldValues($sourceType->getFieldMappings(), $item->payload);
+      $this->processItem($endpoint, $sourceType, $item);
+    } catch (\Throwable $e) {
+      $this->logProcessingError($item, $e);
+    }
+  }
 
-      $entity = $this->entityUpsert->resolveEntityWithoutSave(
-        $endpoint->getTargetEntityTypeId(),
-        $this->resolveBundle($endpoint->getTargetEntityTypeId(), $extractedValues),
-        $sourceType->getFieldMappings(),
-        $extractedValues,
+  /**
+   * Checks that the source type is associated with the endpoint.
+   *
+   * Logs a warning and returns FALSE when the association is missing.
+   *
+   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint
+   *   The loaded endpoint config entity.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item being processed.
+   *
+   * @return bool
+   *   TRUE when the source type is associated; FALSE otherwise.
+   */
+  private function validateSourceTypeAssociation(WebhookEndpointInterface $endpoint, WebhookQueueItem $item): bool {
+    if ($endpoint->hasSourceType($item->sourceType)) {
+      return TRUE;
+    }
+
+    $this->logger->warning(
+      'Source type @source not associated with endpoint @endpoint.',
+      [
+        '@source' => $item->sourceType,
+        '@endpoint' => $item->endpointId,
+      ],
+    );
+
+    return FALSE;
+  }
+
+  /**
+   * Orchestrates the happy-path entity upsert pipeline for a single item.
+   *
+   * Extracts field values, resolves/creates the entity, applies values,
+   * dispatches PreSave/PostSave events, and saves the entity.
+   *
+   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint
+   *   The loaded endpoint config entity.
+   * @param \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $sourceType
+   *   The loaded source type config entity.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item being processed.
+   */
+  private function processItem(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): void {
+    $mappings = $sourceType->getFieldMappings();
+    $extractedValues = $this->extractFieldValues($mappings, $item->payload);
+
+    $entity = $this->entityUpsert->resolveEntity(
+      $endpoint->getTargetEntityTypeId(),
+      $endpoint->getTargetEntityBundle(),
+      $mappings,
+      $extractedValues,
+    );
+
+    $this->entityUpsert->applyFieldValues($entity, $mappings, $extractedValues);
+
+    $preSaveEvent = $this->dispatchPreSaveEvent($entity, $item);
+
+    if ($preSaveEvent->isAborted()) {
+      $this->logger->info(
+        'Webhook processing aborted by PreSave event subscriber for endpoint @endpoint.',
+        ['@endpoint' => $item->endpointId],
       );
 
-      $isNew = $entity->isNew();
+      return;
+    }
 
-      $this->entityUpsert->applyFieldValues($entity, $sourceType->getFieldMappings(), $extractedValues);
+    $wasCreated = $entity->isNew();
+    $entity->save();
 
-      $preSaveEvent = new EntityWebhookPreSaveEvent(
+    $this->dispatchPostSaveEvent($entity, $item, $wasCreated);
+
+    $this->logger->info('Processed webhook item for endpoint @endpoint, source @source.', [
+      '@endpoint' => $item->endpointId,
+      '@source' => $item->sourceType,
+    ]);
+  }
+
+  /**
+   * Creates and dispatches the PreSave event.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity about to be saved.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item being processed.
+   *
+   * @return \Drupal\entity_webhook\Event\EntityWebhookPreSaveEvent
+   *   The dispatched event, possibly modified by subscribers.
+   */
+  private function dispatchPreSaveEvent(EntityInterface $entity, WebhookQueueItem $item): EntityWebhookPreSaveEvent {
+    return $this->eventDispatcher->dispatch(
+      new EntityWebhookPreSaveEvent(
         entity: $entity,
         payload: $item->payload,
         endpointId: $item->endpointId,
         sourceType: $item->sourceType,
-        isNew: $isNew,
-      );
+        isNew: $entity->isNew(),
+      ),
+      EntityWebhookEvents::PRE_SAVE,
+    );
+  }
 
-      $this->eventDispatcher->dispatch($preSaveEvent, EntityWebhookEvents::PRE_SAVE);
+  /**
+   * Creates and dispatches the PostSave event.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity that was saved.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item being processed.
+   * @param bool $wasCreated
+   *   TRUE if the entity was newly created, FALSE if it was updated.
+   */
+  private function dispatchPostSaveEvent(EntityInterface $entity, WebhookQueueItem $item, bool $wasCreated): void {
+    $this->eventDispatcher->dispatch(
+      new EntityWebhookPostSaveEvent(
+        entity: $entity,
+        payload: $item->payload,
+        endpointId: $item->endpointId,
+        sourceType: $item->sourceType,
+        wasCreated: $wasCreated,
+      ),
+      EntityWebhookEvents::POST_SAVE,
+    );
+  }
 
-      if ($preSaveEvent->isAborted()) {
-        $this->logger->info('Webhook processing aborted by PreSave event subscriber for endpoint @endpoint.', [
-          '@endpoint' => $item->endpointId,
-        ]);
-
-        return;
-      }
-
-      $entity->save();
-
-      $this->eventDispatcher->dispatch(
-        new EntityWebhookPostSaveEvent(
-          entity: $entity,
-          payload: $item->payload,
-          endpointId: $item->endpointId,
-          sourceType: $item->sourceType,
-          wasCreated: $isNew,
-        ),
-        EntityWebhookEvents::POST_SAVE,
-      );
-
-      $this->logger->info('Processed webhook item for endpoint @endpoint, source @source.', [
-        '@endpoint' => $item->endpointId,
-        '@source' => $item->sourceType,
-      ]);
-
-    } catch (\Throwable $e) {
-      $this->logger->error('Failed to process webhook item for endpoint @endpoint: @message', [
-        '@endpoint' => $item->endpointId,
-        '@message' => $e->getMessage(),
-      ]);
-    }
+  /**
+   * Logs an error when an exception escapes the processing pipeline.
+   *
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item that failed.
+   * @param \Throwable $e
+   *   The caught exception or error.
+   */
+  private function logProcessingError(WebhookQueueItem $item, \Throwable $e): void {
+    $this->logger->error('Failed to process webhook item for endpoint @endpoint: @message', [
+      '@endpoint' => $item->endpointId,
+      '@message' => $e->getMessage(),
+    ]);
   }
 
   /**
@@ -137,16 +223,15 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The loaded endpoint, or NULL.
    */
   private function loadEndpoint(string $endpointId): ?WebhookEndpointInterface {
-    $endpoint = $this->entityTypeManager
-      ->getStorage('webhook_endpoint')
-      ->load($endpointId);
+    $endpoint = $this->validator->loadEndpoint($endpointId);
 
-    if (!$endpoint instanceof WebhookEndpointInterface) {
-      $this->logger->warning('Webhook endpoint @id not found; skipping queue item.', [
-        '@id' => $endpointId,
-      ]);
-
-      return NULL;
+    if ($endpoint === NULL) {
+      $this->logger->warning(
+        'Webhook endpoint @id was not found, skipping the queue item.',
+        [
+          '@id' => $endpointId,
+        ],
+      );
     }
 
     return $endpoint;
@@ -162,16 +247,15 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The loaded source type, or NULL.
    */
   private function loadSourceType(string $sourceTypeId): ?WebhookSourceTypeInterface {
-    $sourceType = $this->entityTypeManager
-      ->getStorage('webhook_source_type')
-      ->load($sourceTypeId);
+    $sourceType = $this->validator->loadSourceType($sourceTypeId);
 
-    if (!$sourceType instanceof WebhookSourceTypeInterface) {
-      $this->logger->warning('Webhook source type @id not found; skipping queue item.', [
-        '@id' => $sourceTypeId,
-      ]);
-
-      return NULL;
+    if ($sourceType === NULL) {
+      $this->logger->warning(
+        'Webhook source type @id was not found, skipping the queue item.',
+        [
+          '@id' => $sourceTypeId,
+        ],
+      );
     }
 
     return $sourceType;
@@ -192,38 +276,16 @@ class WebhookProcessor implements WebhookProcessorInterface {
     $values = [];
 
     foreach ($mappings as $mapping) {
-      $extracted = $this->jsonPathExtractor->extract($payload, $mapping->jsonPath);
+      $extracted = $this->jsonPathExtractor->extract(
+        $payload,
+        $mapping->jsonPath,
+      );
+
       if ($extracted !== NULL) {
         $values[$mapping->entityField] = $extracted;
       }
     }
 
     return $values;
-  }
-
-  /**
-   * Resolves the bundle for the entity type from extracted values.
-   *
-   * Falls back to an empty string when no bundle key is present in the
-   * extracted values, allowing the upsert service to handle bundle-less
-   * entity types gracefully.
-   *
-   * @param string $entityTypeId
-   *   The entity type machine name.
-   * @param array<string, mixed> $extractedValues
-   *   Extracted payload values keyed by entity field.
-   *
-   * @return string
-   *   The bundle machine name, or an empty string.
-   */
-  private function resolveBundle(string $entityTypeId, array $extractedValues): string {
-    $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
-    $bundleKey = $entityType->getKey('bundle');
-
-    if ($bundleKey && isset($extractedValues[$bundleKey])) {
-      return (string) $extractedValues[$bundleKey];
-    }
-
-    return '';
   }
 }

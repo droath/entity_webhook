@@ -13,7 +13,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * Supports composite key lookups by accepting an associative array of
  * field => value pairs. All criteria must match (AND logic).
  */
-class EntityLookupService implements EntityLookupServiceInterface {
+readonly class EntityLookupService implements EntityLookupServiceInterface {
   /**
    * Constructs an EntityLookupService.
    *
@@ -21,22 +21,24 @@ class EntityLookupService implements EntityLookupServiceInterface {
    *   The entity type manager.
    */
   public function __construct(
-    protected readonly EntityTypeManagerInterface $entityTypeManager,
+    protected EntityTypeManagerInterface $entityTypeManager,
   ) {
   }
 
   /**
    * {@inheritdoc}
    */
-  public function findEntity(string $entityTypeId, array $criteria): ?EntityInterface {
-    if (empty($criteria)) {
+  public function findEntity(
+    string $entityTypeId,
+    array $identifiers,
+  ): ?EntityInterface {
+    if (empty($identifiers)) {
       return NULL;
     }
-
     $storage = $this->entityTypeManager->getStorage($entityTypeId);
     $query = $storage->getQuery()->accessCheck(FALSE);
 
-    foreach ($criteria as $field => $value) {
+    foreach ($identifiers as $field => $value) {
       $query->condition($field, $value);
     }
 

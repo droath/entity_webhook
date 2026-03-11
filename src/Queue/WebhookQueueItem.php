@@ -11,7 +11,6 @@ namespace Drupal\entity_webhook\Queue;
  * and deserialized back via fromArray() during processing.
  */
 final readonly class WebhookQueueItem {
-
   /**
    * Constructs a WebhookQueueItem.
    *
@@ -32,7 +31,8 @@ final readonly class WebhookQueueItem {
     public array $payload,
     public \DateTimeImmutable $receivedAt,
     public string $source,
-  ) {}
+  ) {
+  }
 
   /**
    * Creates a WebhookQueueItem from a plain array.
@@ -42,15 +42,13 @@ final readonly class WebhookQueueItem {
    *
    * @return self
    *   A new WebhookQueueItem instance.
-   *
-   * @throws \DateMalformedStringException
    */
   public static function fromArray(array $data): self {
     return new self(
       endpointId: (string) ($data['endpoint_id'] ?? ''),
       sourceType: (string) ($data['source_type'] ?? ''),
       payload: (array) ($data['payload'] ?? []),
-      receivedAt: new \DateTimeImmutable((string) ($data['received_at'] ?? 'now')),
+      receivedAt: self::parseReceivedAt((string) ($data['received_at'] ?? 'now')),
       source: (string) ($data['source'] ?? 'webhook'),
     );
   }
@@ -71,4 +69,20 @@ final readonly class WebhookQueueItem {
     ];
   }
 
+  /**
+   * Parses a datetime string into a DateTimeImmutable, falling back to now.
+   *
+   * @param string $value
+   *   The datetime string to parse.
+   *
+   * @return \DateTimeImmutable
+   *   The parsed datetime, or the current time if the value is malformed.
+   */
+  private static function parseReceivedAt(string $value): \DateTimeImmutable {
+    try {
+      return new \DateTimeImmutable($value);
+    } catch (\DateMalformedStringException) {
+      return new \DateTimeImmutable();
+    }
+  }
 }

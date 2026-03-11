@@ -42,14 +42,6 @@ interface EntityUpsertServiceInterface {
   ): EntityInterface;
 
   /**
-   * Returns whether the most recent upsert() call created a new entity.
-   *
-   * @return bool
-   *   TRUE if the last upsert created a new entity; FALSE if it updated one.
-   */
-  public function wasCreated(): bool;
-
-  /**
    * Finds or creates an entity without saving it or applying field values.
    *
    * This method separates the lookup/creation step from saving, so callers
@@ -67,7 +59,7 @@ interface EntityUpsertServiceInterface {
    * @return \Drupal\Core\Entity\EntityInterface
    *   An unsaved entity instance (new or existing, not yet field-populated).
    */
-  public function resolveEntityWithoutSave(
+  public function resolveEntity(
     string $entityTypeId,
     string $bundle,
     array $mappings,

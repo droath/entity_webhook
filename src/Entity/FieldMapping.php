@@ -12,7 +12,6 @@ namespace Drupal\entity_webhook\Entity;
  * field as a lookup key for entity upsert operations.
  */
 final readonly class FieldMapping {
-
   /**
    * Constructs a FieldMapping value object.
    *
@@ -27,7 +26,8 @@ final readonly class FieldMapping {
     public string $entityField,
     public string $jsonPath,
     public bool $isIdentifier = FALSE,
-  ) {}
+  ) {
+  }
 
   /**
    * Creates a FieldMapping from a configuration array.
@@ -59,5 +59,4 @@ final readonly class FieldMapping {
       'is_identifier' => $this->isIdentifier,
     ];
   }
-
 }

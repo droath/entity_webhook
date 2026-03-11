@@ -16,10 +16,10 @@ interface WebhookEndpointInterface extends ConfigEntityInterface {
   /**
    * Returns the target entity type ID for this endpoint.
    *
-   * @return string
-   *   The Drupal entity type machine name (e.g., 'node', 'user').
+   * @return string|null
+   *   The Drupal entity type machine name (e.g., 'node', 'user'), or null.
    */
-  public function getTargetEntityTypeId(): string;
+  public function getTargetEntityTypeId(): ?string;
 
   /**
    * Returns the list of WebhookSourceType IDs associated with this endpoint.
@@ -39,4 +39,28 @@ interface WebhookEndpointInterface extends ConfigEntityInterface {
    *   TRUE if the source type is associated with this endpoint.
    */
   public function hasSourceType(string $sourceTypeId): bool;
+
+  /**
+   * Gets the target entity bundle.
+   *
+   * @return string|null
+   *   The target entity bundle machine name, or null for any bundle.
+   */
+  public function getTargetEntityBundle(): ?string;
+
+  /**
+   * Adds a source type to this endpoint.
+   *
+   * @param string $sourceTypeId
+   *   The source type machine name.
+   */
+  public function addSourceType(string $sourceTypeId): static;
+
+  /**
+   * Removes a source type from this endpoint.
+   *
+   * @param string $sourceTypeId
+   *   The source type machine name.
+   */
+  public function removeSourceType(string $sourceTypeId): static;
 }

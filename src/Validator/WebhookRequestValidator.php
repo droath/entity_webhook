@@ -13,7 +13,7 @@ use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
  * Validates incoming webhook requests and resolves their config entities.
  *
  * Performs JSON parsing and config entity lookups. Cryptographic verification
- * is intentionally omitted here and delegated to verification plugins (Wave 3.1).
+ * is intentionally omitted here and delegated to verification plugins.
  */
 class WebhookRequestValidator implements WebhookRequestValidatorInterface {
   /**

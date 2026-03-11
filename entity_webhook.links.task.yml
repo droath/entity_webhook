@@ -3,7 +3,13 @@ entity_webhook.admin_tab:
   route_name: entity.webhook_endpoint.collection
   base_route: entity.webhook_endpoint.collection
 
-entity_webhook.admin_source_types_tab:
-  title: 'Source Types'
-  route_name: entity.webhook_source_type.collection
-  base_route: entity.webhook_endpoint.collection
+entity.webhook_endpoint.edit_form:
+  title: 'Edit'
+  route_name: entity.webhook_endpoint.edit_form
+  base_route: entity.webhook_endpoint.edit_form
+
+entity.webhook_endpoint.source_types:
+  title: 'Manage source types'
+  route_name: entity.webhook_endpoint.source_types
+  base_route: entity.webhook_endpoint.edit_form
+  weight: 10

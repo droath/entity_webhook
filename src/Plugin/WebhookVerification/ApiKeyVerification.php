@@ -10,7 +10,8 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\entity_webhook\Attribute\WebhookVerification;
 
 /**
- * Verifies webhook requests by comparing an API key from a header or query parameter.
+ * Verifies webhook requests by comparing an API key from a header or query
+ * parameter.
  *
  * The API key can be extracted from either:
  * - An HTTP header (e.g. X-API-Key, Authorization)
@@ -25,21 +26,22 @@ use Drupal\entity_webhook\Attribute\WebhookVerification;
   description: new TranslatableMarkup('Verifies requests using an API key from a configurable header or query parameter.'),
 )]
 class ApiKeyVerification extends WebhookVerificationBase {
-  /** Source constant: read key from an HTTP header. */
-  private const SOURCE_HEADER = 'header';
 
-  /** Source constant: read key from a query parameter. */
-  private const SOURCE_QUERY = 'query';
+  /** @var string */
+  private const string SOURCE_HEADER = 'header';
+
+  /** @var string */
+  private const string SOURCE_QUERY = 'query';
 
   /**
    * {@inheritdoc}
    */
   public function defaultConfiguration(): array {
     return [
-      'api_key' => '',
+      'api_key' => NULL,
+      'query_param' => 'token',
       'source' => self::SOURCE_HEADER,
       'header_name' => 'X-API-Key',
-      'query_param' => 'token',
     ];
   }
 
@@ -52,7 +54,6 @@ class ApiKeyVerification extends WebhookVerificationBase {
     if ($configuredKey === '') {
       return FALSE;
     }
-
     $providedKey = $this->extractKeyFromRequest($request);
 
     if ($providedKey === NULL || $providedKey === '') {
@@ -136,7 +137,10 @@ class ApiKeyVerification extends WebhookVerificationBase {
     return match ($this->configuration['source']) {
       self::SOURCE_HEADER => $request->headers->get($this->configuration['header_name']),
       self::SOURCE_QUERY => $request->query->get($this->configuration['query_param']),
-      default => NULL,
+      default => throw new \UnexpectedValueException(
+        sprintf('Unknown API key source: %s', $this->configuration['source']),
+      ),
     };
   }
+
 }

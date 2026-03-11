@@ -75,7 +75,8 @@
         "phpstan/extension-installer": "^1.4",
         "mglaman/phpstan-drupal": "^2.0",
         "phpstan/phpstan-deprecation-rules": "^2.0",
-        "symplify/easy-coding-standard": "^13.0"
+        "symplify/easy-coding-standard": "^13.0",
+        "drupal/queue_ui": "^3.2"
     },
     "extra": {
         "installer-paths": {

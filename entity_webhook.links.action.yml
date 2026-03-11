@@ -4,8 +4,8 @@ entity.webhook_endpoint.add_form:
   appears_on:
     - entity.webhook_endpoint.collection
 
-entity.webhook_source_type.add_form:
-  route_name: entity.webhook_source_type.add_form
-  title: 'Add Source Type'
+entity.webhook_endpoint.source_types.add:
+  route_name: entity.webhook_endpoint.source_types.add
+  title: 'Add source type'
   appears_on:
-    - entity.webhook_source_type.collection
+    - entity.webhook_endpoint.source_types

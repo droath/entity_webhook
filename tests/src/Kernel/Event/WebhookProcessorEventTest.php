@@ -56,6 +56,7 @@ class WebhookProcessorEventTest extends KernelTestBase {
       'id' => 'test_endpoint',
       'label' => 'Test Endpoint',
       'target_entity_type' => 'node',
+      'target_entity_bundle' => 'article',
       'source_types' => ['test_source'],
     ])->save();
 
@@ -219,6 +220,7 @@ class WebhookProcessorEventTest extends KernelTestBase {
       'id' => 'endpoint_with_id',
       'label' => 'Endpoint With ID',
       'target_entity_type' => 'node',
+      'target_entity_bundle' => 'article',
       'source_types' => ['source_with_id'],
     ])->save();
 

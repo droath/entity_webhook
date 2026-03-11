@@ -8,6 +8,9 @@ entity_webhook.webhook_source_type.*:
     label:
       type: label
       label: 'Label'
+    endpoint:
+      type: string
+      label: 'Parent endpoint ID'
     field_mappings:
       type: sequence
       label: 'Field Mappings'
@@ -47,6 +50,9 @@ entity_webhook.webhook_endpoint.*:
     target_entity_type:
       type: string
       label: 'Target Entity Type'
+    target_entity_bundle:
+      type: string
+      label: 'Target entity bundle'
     source_types:
       type: sequence
       label: 'Source Types'

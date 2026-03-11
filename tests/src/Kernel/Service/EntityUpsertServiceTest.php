@@ -100,43 +100,4 @@ class EntityUpsertServiceTest extends KernelTestBase {
     $this->assertSame('Updated Title', $entity->label());
   }
 
-  /**
-   * Tests that upsert reports whether the entity was newly created.
-   */
-  public function testUpsertReportsWhetherEntityWasCreated(): void {
-    $mappings = [
-      new FieldMapping('title', '$.name', isIdentifier: FALSE),
-    ];
-    $extractedValues = ['title' => 'Brand New'];
-
-    $this->upsertService->upsert('node', 'product', $mappings, $extractedValues);
-
-    $this->assertTrue($this->upsertService->wasCreated());
-  }
-
-  /**
-   * Tests that upsert reports false for wasCreated when entity already existed.
-   */
-  public function testUpsertReportsFalseForWasCreatedWhenUpdating(): void {
-    $existing = Node::create([
-      'type' => 'product',
-      'title' => 'Existing Product',
-    ]);
-    $existing->save();
-
-    $mappings = [
-      new FieldMapping('nid', '$.id', isIdentifier: TRUE),
-      new FieldMapping('title', '$.name', isIdentifier: FALSE),
-    ];
-    // extractedValues are post-JSONPath-extraction, keyed by entity field name.
-    $extractedValues = [
-      'nid' => (string) $existing->id(),
-      'title' => 'Updated Name',
-    ];
-
-    $this->upsertService->upsert('node', 'product', $mappings, $extractedValues);
-
-    $this->assertFalse($this->upsertService->wasCreated());
-  }
-
 }

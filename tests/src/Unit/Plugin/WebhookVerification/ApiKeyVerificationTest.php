@@ -104,6 +104,26 @@ class ApiKeyVerificationTest extends UnitTestCase {
   }
 
   /**
+   * Tests that an unknown source value throws UnexpectedValueException.
+   *
+   * @covers ::verify
+   */
+  public function testUnknownSourceThrowsUnexpectedValueException(): void {
+    $plugin = $this->createPlugin([
+      'api_key' => 'secret',
+      'source' => 'cookie',
+      'header_name' => 'X-API-Key',
+      'query_param' => 'token',
+    ]);
+    $request = Request::create('/webhook/test/source', 'POST');
+
+    $this->expectException(\UnexpectedValueException::class);
+    $this->expectExceptionMessage('Unknown API key source: cookie');
+
+    $plugin->verify($request);
+  }
+
+  /**
    * Tests that an empty configured API key fails all requests.
    *
    * An empty key must not match an empty header to prevent accidental open access.

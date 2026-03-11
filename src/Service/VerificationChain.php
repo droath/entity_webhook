@@ -16,11 +16,18 @@ use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationInterfac
 class VerificationChain implements VerificationChainInterface {
   /**
    * {@inheritdoc}
+   *
+   * @throws \InvalidArgumentException
+   *   When any element of $plugins does not implement
+   *   WebhookVerificationInterface. This is a programmer error.
    */
   public function verify(Request $request, array $plugins): bool {
     foreach ($plugins as $plugin) {
       if (!$plugin instanceof WebhookVerificationInterface) {
-        continue;
+        throw new \InvalidArgumentException(sprintf(
+          'Plugin %s does not implement WebhookVerificationInterface.',
+          get_class($plugin),
+        ));
       }
 
       if (!$plugin->verify($request)) {

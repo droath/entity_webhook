@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook\Entity;
 
+use Drupal\Core\Url;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Config\Entity\ConfigEntityListBuilder;
 
@@ -21,6 +22,23 @@ class WebhookEndpointListBuilder extends ConfigEntityListBuilder {
     $header['source_types'] = $this->t('Source Types');
 
     return $header + parent::buildHeader();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getDefaultOperations(EntityInterface $entity): array {
+    $operations = parent::getDefaultOperations($entity);
+
+    $operations['manage_source_types'] = [
+      'title' => $this->t('Manage source types'),
+      'url' => Url::fromRoute('entity.webhook_endpoint.source_types', [
+        'webhook_endpoint' => $entity->id(),
+      ]),
+      'weight' => 10,
+    ];
+
+    return $operations;
   }
 
   /**

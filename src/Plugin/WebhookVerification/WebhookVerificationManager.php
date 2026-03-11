@@ -48,4 +48,17 @@ class WebhookVerificationManager extends DefaultPluginManager implements Webhook
     $this->alterInfo('webhook_verification_info');
     $this->setCacheBackend($cache_backend, 'webhook_verification_plugins');
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getOptions(): array {
+    $options = [];
+    foreach ($this->getDefinitions() as $pluginId => $definition) {
+      $options[$pluginId] = (string) $definition['label'];
+    }
+    asort($options);
+
+    return $options;
+  }
 }

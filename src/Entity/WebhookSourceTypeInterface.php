@@ -44,4 +44,21 @@ interface WebhookSourceTypeInterface extends ConfigEntityInterface {
    *   Plugin configuration keyed by plugin config key.
    */
   public function getVerificationConfig(): array;
+
+  /**
+   * Returns the parent endpoint machine name stored on this source type.
+   *
+   * @return string
+   *   The endpoint ID, or an empty string if no endpoint has been stored.
+   */
+  public function getEndpointId(): string;
+
+  /**
+   * Returns the parent WebhookEndpoint entity, if one is stored.
+   *
+   * @return \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null
+   *   The endpoint entity, or NULL if no endpoint is stored or it no longer
+   *   exists.
+   */
+  public function getEndpoint(): ?WebhookEndpointInterface;
 }

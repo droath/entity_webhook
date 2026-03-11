@@ -13,7 +13,7 @@ use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
  *
  * Responsible for JSON parsing, endpoint existence checks, source type
  * existence checks, and verifying the source type is associated with
- * the endpoint. Does not perform cryptographic verification (Wave 3.1).
+ * the endpoint. Does not perform cryptographic verification.
  */
 interface WebhookRequestValidatorInterface {
   /**

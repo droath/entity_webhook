@@ -5,3 +5,53 @@ entity_webhook.receive:
   methods: [POST]
   requirements:
     _access: 'TRUE'
+
+entity.webhook_endpoint.source_types:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types'
+  defaults:
+    _controller: '\Drupal\entity_webhook\Controller\EndpointSourceTypesController::listSourceTypes'
+    _title_callback: '\Drupal\entity_webhook\Controller\EndpointSourceTypesController::getTitle'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+
+entity.webhook_endpoint.source_types.add:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/add'
+  defaults:
+    _entity_form: 'webhook_source_type.add'
+    _title: 'Add source type'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+
+entity.webhook_endpoint.source_types.remove:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{source_type}/remove'
+  defaults:
+    _form: '\Drupal\entity_webhook\Form\EndpointSourceTypeRemoveForm'
+    _title: 'Remove source type'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+
+entity.webhook_source_type.edit_form:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/edit'
+  defaults:
+    _entity_form: 'webhook_source_type.edit'
+    _title: 'Edit source type'
+  requirements:
+    _entity_access: 'webhook_source_type.update'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+      webhook_source_type:
+        type: entity:webhook_source_type

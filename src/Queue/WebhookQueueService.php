@@ -14,12 +14,11 @@ use Drupal\Core\Queue\QueueInterface;
  * rather than raw queue data arrays.
  */
 class WebhookQueueService implements WebhookQueueServiceInterface {
-
   /** The name of the Drupal queue used for webhook processing. */
   private const string QUEUE_NAME = 'entity_webhook_processor';
 
-  /** The underlying Drupal queue instance. */
-  private readonly QueueInterface $queue;
+  /** The underlying Drupal queue instance, lazily initialized. */
+  private ?QueueInterface $queue = NULL;
 
   /**
    * Constructs a WebhookQueueService.
@@ -27,22 +26,30 @@ class WebhookQueueService implements WebhookQueueServiceInterface {
    * @param \Drupal\Core\Queue\QueueFactory $queueFactory
    *   The Drupal queue factory service.
    */
-  public function __construct(QueueFactory $queueFactory) {
-    $this->queue = $queueFactory->get(self::QUEUE_NAME);
+  public function __construct(private readonly QueueFactory $queueFactory) {
   }
 
   /**
    * {@inheritdoc}
    */
   public function enqueue(WebhookQueueItem $item): bool {
-    return (bool) $this->queue->createItem($item->toArray());
+    return (bool) $this->getQueue()->createItem($item->toArray());
   }
 
   /**
    * {@inheritdoc}
    */
   public function getQueueDepth(): int {
-    return $this->queue->numberOfItems();
+    return $this->getQueue()->numberOfItems();
   }
 
+  /**
+   * Returns the queue instance, initializing it on first access.
+   *
+   * @return \Drupal\Core\Queue\QueueInterface
+   *   The underlying Drupal queue.
+   */
+  private function getQueue(): QueueInterface {
+    return $this->queue ??= $this->queueFactory->get(self::QUEUE_NAME);
+  }
 }

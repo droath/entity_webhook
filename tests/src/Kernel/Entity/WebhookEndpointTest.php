@@ -120,4 +120,113 @@ class WebhookEndpointTest extends KernelTestBase {
     $this->assertNull(WebhookEndpoint::load('deletable_endpoint'));
   }
 
+  /**
+   * Tests that target_entity_bundle is stored and retrieved correctly.
+   */
+  public function testTargetEntityBundleStoredAndRetrieved(): void {
+    WebhookEndpoint::create([
+      'id' => 'bundle_endpoint',
+      'label' => 'Bundle Endpoint',
+      'target_entity_type' => 'node',
+      'target_entity_bundle' => 'article',
+      'source_types' => [],
+    ])->save();
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('bundle_endpoint');
+
+    $this->assertSame('article', $loaded->getTargetEntityBundle());
+  }
+
+  /**
+   * Tests that getTargetEntityBundle returns null when not set.
+   */
+  public function testTargetEntityBundleDefaultsToNull(): void {
+    WebhookEndpoint::create([
+      'id' => 'no_bundle_endpoint',
+      'label' => 'No Bundle Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => [],
+    ])->save();
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('no_bundle_endpoint');
+
+    $this->assertNull($loaded->getTargetEntityBundle());
+  }
+
+  /**
+   * Tests addSourceType appends a new source type ID.
+   */
+  public function testAddSourceTypeAppendsNewId(): void {
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint */
+    $endpoint = WebhookEndpoint::create([
+      'id' => 'add_source_endpoint',
+      'label' => 'Add Source Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => ['source_a'],
+    ]);
+
+    $endpoint->addSourceType('source_b');
+
+    $this->assertContains('source_a', $endpoint->getSourceTypeIds());
+    $this->assertContains('source_b', $endpoint->getSourceTypeIds());
+    $this->assertCount(2, $endpoint->getSourceTypeIds());
+  }
+
+  /**
+   * Tests addSourceType does not add a duplicate ID.
+   */
+  public function testAddSourceTypeIgnoresDuplicate(): void {
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint */
+    $endpoint = WebhookEndpoint::create([
+      'id' => 'duplicate_source_endpoint',
+      'label' => 'Duplicate Source Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => ['source_a'],
+    ]);
+
+    $endpoint->addSourceType('source_a');
+
+    $this->assertCount(1, $endpoint->getSourceTypeIds());
+  }
+
+  /**
+   * Tests removeSourceType removes the given ID and reindexes the array.
+   */
+  public function testRemoveSourceTypeRemovesIdAndReindexes(): void {
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint */
+    $endpoint = WebhookEndpoint::create([
+      'id' => 'remove_source_endpoint',
+      'label' => 'Remove Source Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => ['source_a', 'source_b', 'source_c'],
+    ]);
+
+    $endpoint->removeSourceType('source_b');
+
+    $ids = $endpoint->getSourceTypeIds();
+    $this->assertCount(2, $ids);
+    $this->assertNotContains('source_b', $ids);
+    $this->assertSame(['source_a', 'source_c'], array_values($ids));
+  }
+
+  /**
+   * Tests removeSourceType is a no-op when the ID is absent.
+   */
+  public function testRemoveSourceTypeIsNoOpForAbsentId(): void {
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint */
+    $endpoint = WebhookEndpoint::create([
+      'id' => 'noop_remove_endpoint',
+      'label' => 'Noop Remove Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => ['source_a'],
+    ]);
+
+    $endpoint->removeSourceType('nonexistent');
+
+    $this->assertCount(1, $endpoint->getSourceTypeIds());
+    $this->assertContains('source_a', $endpoint->getSourceTypeIds());
+  }
+
 }

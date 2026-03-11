@@ -7,9 +7,9 @@ namespace Drupal\entity_webhook\Entity;
 use Drupal\Core\Entity\EntityDeleteForm;
 use Drupal\Core\Config\Entity\ConfigEntityBase;
 use Drupal\Core\Entity\Attribute\ConfigEntityType;
-use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
-use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
+use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
 
 /**
  * Defines the WebhookSourceType config entity.
@@ -29,7 +29,6 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
     'label' => 'label',
   ],
   handlers: [
-    'list_builder' => WebhookSourceTypeListBuilder::class,
     'form' => [
       'add' => WebhookSourceTypeForm::class,
       'edit' => WebhookSourceTypeForm::class,
@@ -38,10 +37,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
     'route_provider' => ['html' => AdminHtmlRouteProvider::class],
   ],
   links: [
-    'add-form' => '/admin/config/services/entity-webhook/source-types/add',
-    'edit-form' => '/admin/config/services/entity-webhook/source-types/{webhook_source_type}',
-    'delete-form' => '/admin/config/services/entity-webhook/source-types/{webhook_source_type}/delete',
-    'collection' => '/admin/config/services/entity-webhook/source-types',
+    'edit-form' => '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/edit',
   ],
   admin_permission: 'administer entity_webhook',
   label_count: [
@@ -51,18 +47,21 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
   config_export: [
     'id',
     'label',
+    'endpoint',
     'field_mappings',
     'verification_plugin',
     'verification_config',
   ],
 )]
 class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInterface {
-
   /** The source type machine name. */
   protected string $id = '';
 
   /** The source type human-readable label. */
   protected string $label = '';
+
+  /** The parent endpoint machine name. */
+  protected string $endpoint = '';
 
   /**
    * Raw field mappings configuration array.
@@ -84,9 +83,31 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
   /**
    * {@inheritdoc}
    */
+  public function getEndpointId(): string {
+    return $this->endpoint;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getEndpoint(): ?WebhookEndpointInterface {
+    if ($this->endpoint === '') {
+      return NULL;
+    }
+
+    $entity = \Drupal::entityTypeManager()
+      ->getStorage('webhook_endpoint')
+      ->load($this->endpoint);
+
+    return $entity instanceof WebhookEndpointInterface ? $entity : NULL;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getFieldMappings(): array {
     return array_map(
-      static fn(array $data) => FieldMapping::fromArray($data),
+      static fn (array $data) => FieldMapping::fromArray($data),
       $this->field_mappings,
     );
   }
@@ -97,7 +118,7 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
   public function getIdentifierMappings(): array {
     return array_values(array_filter(
       $this->getFieldMappings(),
-      static fn(FieldMapping $mapping) => $mapping->isIdentifier,
+      static fn (FieldMapping $mapping) => $mapping->isIdentifier,
     ));
   }
 
@@ -114,5 +135,4 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
   public function getVerificationConfig(): array {
     return $this->verification_config;
   }
-
 }

@@ -35,7 +35,7 @@ services:
   entity_webhook.webhook_processor:
     class: Drupal\entity_webhook\Service\WebhookProcessor
     arguments:
-      - '@entity_type.manager'
+      - '@entity_webhook.webhook_request_validator'
       - '@entity_webhook.json_path_extractor'
       - '@entity_webhook.entity_upsert'
       - '@logger.channel.entity_webhook'
@@ -43,3 +43,8 @@ services:
 
   entity_webhook.verification_chain:
     class: Drupal\entity_webhook\Service\VerificationChain
+
+  entity_webhook.verification_config_transformer:
+    class: Drupal\entity_webhook\Service\VerificationConfigTransformer
+    arguments:
+      - '@plugin.manager.webhook_verification'

@@ -75,38 +75,64 @@ class WebhookController extends ControllerBase {
    *   200 on success, 400 on invalid JSON, 403 on verification failure,
    *   404 on unknown endpoint/source.
    */
-  public function receive(Request $request, string $endpoint_name, string $source_type): Response {
-    $this->logger->info('Webhook received for endpoint @endpoint, source @source.', [
-      '@endpoint' => $endpoint_name,
-      '@source' => $source_type,
-    ]);
+  public function receive(
+    Request $request,
+    string $endpoint_name,
+    string $source_type,
+  ): Response {
+    $logContext = ['@source' => $source_type, '@endpoint' => $endpoint_name];
 
-    $payload = $this->validator->parsePayload($request);
-    if ($payload === NULL) {
-      return $this->errorResponse('Invalid JSON payload.', Response::HTTP_BAD_REQUEST);
+    $this->logger->info(
+      'Webhook received for endpoint @endpoint, source @source.',
+      $logContext,
+    );
+    $payload = $this->loadOrFail(
+      fn () => $this->validator->parsePayload($request),
+      'Invalid JSON payload.',
+      Response::HTTP_BAD_REQUEST,
+    );
+
+    if ($payload instanceof JsonResponse) {
+      return $payload;
     }
 
-    $endpoint = $this->validator->loadEndpoint($endpoint_name);
-    if ($endpoint === NULL) {
-      return $this->errorResponse('Endpoint not found.', Response::HTTP_NOT_FOUND);
+    $endpoint = $this->loadOrFail(
+      fn () => $this->validator->loadEndpoint($endpoint_name),
+      'Endpoint not found.',
+      Response::HTTP_NOT_FOUND,
+    );
+
+    if ($endpoint instanceof JsonResponse) {
+      return $endpoint;
     }
 
-    $sourceTypeEntity = $this->validator->loadSourceType($source_type);
-    if ($sourceTypeEntity === NULL) {
-      return $this->errorResponse('Source type not found.', Response::HTTP_NOT_FOUND);
+    $sourceTypeEntity = $this->loadOrFail(
+      fn () => $this->validator->loadSourceType($source_type),
+      'Source type not found.',
+      Response::HTTP_NOT_FOUND,
+    );
+
+    if ($sourceTypeEntity instanceof JsonResponse) {
+      return $sourceTypeEntity;
     }
 
     if (!$this->validator->isSourceTypeAllowed($endpoint, $source_type)) {
-      return $this->errorResponse('Source type not allowed for this endpoint.', Response::HTTP_NOT_FOUND);
+      return $this->errorResponse(
+        'Source type is not allowed for this endpoint.',
+        Response::HTTP_NOT_FOUND,
+      );
     }
 
     if (!$this->runVerification($request, $sourceTypeEntity)) {
-      $this->logger->warning('Webhook verification failed for endpoint @endpoint, source @source.', [
-        '@endpoint' => $endpoint_name,
-        '@source' => $source_type,
-      ]);
+      $this->logger->warning(
+        'Webhook verification failed for endpoint @endpoint, source @source.',
+        $logContext,
+      );
 
-      return $this->errorResponse('Webhook verification failed.', Response::HTTP_FORBIDDEN);
+      return $this->errorResponse(
+        'Webhook verification failed.',
+        Response::HTTP_FORBIDDEN,
+      );
     }
 
     $this->queueService->enqueue(new WebhookQueueItem(
@@ -117,10 +143,10 @@ class WebhookController extends ControllerBase {
       source: 'webhook',
     ));
 
-    $this->logger->info('Webhook payload queued for endpoint @endpoint, source @source.', [
-      '@endpoint' => $endpoint_name,
-      '@source' => $source_type,
-    ]);
+    $this->logger->info(
+      'Webhook payload queued for endpoint @endpoint, source @source.',
+      $logContext,
+    );
 
     return new JsonResponse(['status' => 'queued'], Response::HTTP_OK);
   }
@@ -134,6 +160,8 @@ class WebhookController extends ControllerBase {
    *   The incoming HTTP request.
    * @param \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $sourceTypeEntity
    *   The source type config entity.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\PluginException
    *
    * @return bool
    *   TRUE if verification passes, FALSE otherwise.
@@ -151,6 +179,29 @@ class WebhookController extends ControllerBase {
     );
 
     return $this->verificationChain->verify($request, [$plugin]);
+  }
+
+  /**
+   * Loads a resource or returns an error response if not found.
+   *
+   * @param callable $loader
+   *   A callable that returns the loaded resource or null.
+   * @param string $message
+   *   The error message if resource is not found.
+   * @param int $status
+   *   The HTTP status code for the error response.
+   *
+   * @return mixed
+   *   The loaded resource, or a JsonResponse on failure.
+   */
+  private function loadOrFail(callable $loader, string $message, int $status): mixed {
+    $result = $loader();
+
+    if ($result === NULL) {
+      return $this->errorResponse($message, $status);
+    }
+
+    return $result;
   }
 
   /**

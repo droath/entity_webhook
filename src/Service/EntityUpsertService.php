@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\entity_webhook\Service;
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\entity_webhook\Entity\FieldMapping;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 
@@ -16,8 +17,6 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * non-identifier (and identifier) field values are written to the entity.
  */
 class EntityUpsertService implements EntityUpsertServiceInterface {
-  /** Tracks whether the last upsert call created a new entity. */
-  private bool $lastWasCreated = FALSE;
 
   /**
    * Constructs an EntityUpsertService.
@@ -30,8 +29,7 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
   public function __construct(
     protected readonly EntityTypeManagerInterface $entityTypeManager,
     protected readonly EntityLookupServiceInterface $entityLookup,
-  ) {
-  }
+  ) {}
 
   /**
    * {@inheritdoc}
@@ -42,9 +40,14 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
     array $mappings,
     array $extractedValues,
   ): EntityInterface {
-    $entity = $this->resolveEntityWithoutSave($entityTypeId, $bundle, $mappings, $extractedValues);
-
+    $entity = $this->resolveEntity(
+      $entityTypeId,
+      $bundle,
+      $mappings,
+      $extractedValues,
+    );
     $this->applyFieldValues($entity, $mappings, $extractedValues);
+
     $entity->save();
 
     return $entity;
@@ -60,24 +63,24 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
   /**
    * {@inheritdoc}
    */
-  public function resolveEntityWithoutSave(
+  public function resolveEntity(
     string $entityTypeId,
     string $bundle,
     array $mappings,
     array $extractedValues,
   ): EntityInterface {
-    $identifierCriteria = $this->buildIdentifierCriteria($mappings, $extractedValues);
+    $identifiers = $this->buildIdentifiers($mappings, $extractedValues);
 
-    if (!empty($identifierCriteria)) {
-      $existing = $this->entityLookup->findEntity($entityTypeId, $identifierCriteria);
+    if (!empty($identifiers)) {
+      $existing = $this->entityLookup->findEntity(
+        $entityTypeId,
+        $identifiers,
+      );
+
       if ($existing !== NULL) {
-        $this->lastWasCreated = FALSE;
-
         return $existing;
       }
     }
-
-    $this->lastWasCreated = TRUE;
 
     return $this->createEntity($entityTypeId, $bundle);
   }
@@ -90,11 +93,27 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
     array $mappings,
     array $extractedValues,
   ): void {
-    $this->applyMappings($entity, $mappings, $extractedValues);
+    if (!$entity instanceof FieldableEntityInterface) {
+      return;
+    }
+
+    foreach ($mappings as $mapping) {
+      if (!$this->hasExtractedValue($extractedValues, $mapping)) {
+        continue;
+      }
+
+      if ($this->isEntityIdField($entity, $mapping->entityField)) {
+        continue;
+      }
+
+      $entity->set($mapping->entityField, $extractedValues[$mapping->entityField]);
+    }
   }
 
   /**
    * Builds the identifier criteria array from identifier-flagged mappings.
+   *
+   * Pure data transformation — no side effects, no entity I/O.
    *
    * @param \Drupal\entity_webhook\Entity\FieldMapping[] $mappings
    *   All field mappings.
@@ -104,14 +123,17 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
    * @return array<string, string>
    *   Field => value pairs for identifier lookup.
    */
-  private function buildIdentifierCriteria(array $mappings, array $extractedValues): array {
+  private function buildIdentifiers(
+    array $mappings,
+    array $extractedValues,
+  ): array {
     $criteria = [];
 
     foreach ($mappings as $mapping) {
       if (!$mapping->isIdentifier) {
         continue;
       }
-      if (!isset($extractedValues[$mapping->entityField])) {
+      if (!$this->hasExtractedValue($extractedValues, $mapping)) {
         continue;
       }
       $criteria[$mapping->entityField] = (string) $extractedValues[$mapping->entityField];
@@ -123,6 +145,9 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
   /**
    * Creates a new entity of the given type and bundle.
    *
+   * Entity creation only — no field values are applied and the entity is not
+   * saved. Bundle key detection handles entity types that have no bundle.
+   *
    * @param string $entityTypeId
    *   The entity type machine name.
    * @param string $bundle
@@ -130,8 +155,14 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
    *
    * @return \Drupal\Core\Entity\EntityInterface
    *   A new unsaved entity instance.
+   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
-  private function createEntity(string $entityTypeId, string $bundle): EntityInterface {
+  private function createEntity(
+    string $entityTypeId,
+    string $bundle,
+  ): EntityInterface {
     $storage = $this->entityTypeManager->getStorage($entityTypeId);
     $entityType = $this->entityTypeManager->getDefinition($entityTypeId);
     $bundleKey = $entityType->getKey('bundle');
@@ -142,39 +173,18 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
   }
 
   /**
-   * Applies all field mappings to the entity from the extracted values.
+   * Returns whether the given mapping has a corresponding extracted value.
    *
-   * Multi-value fields (arrays) are set directly; scalar values are wrapped
-   * as needed by the Drupal field API set() call. Only FieldableEntityInterface
-   * instances support set(); non-fieldable entities are skipped silently.
-   *
-   * @param \Drupal\Core\Entity\EntityInterface $entity
-   *   The entity to populate.
-   * @param \Drupal\entity_webhook\Entity\FieldMapping[] $mappings
-   *   All field mappings.
    * @param array<string, mixed> $extractedValues
    *   Extracted payload values keyed by entity field.
+   * @param \Drupal\entity_webhook\Entity\FieldMapping $mapping
+   *   The field mapping to check.
+   *
+   * @return bool
+   *   TRUE if a value exists for this mapping's entity field.
    */
-  private function applyMappings(
-    EntityInterface $entity,
-    array $mappings,
-    array $extractedValues,
-  ): void {
-    if (!$entity instanceof FieldableEntityInterface) {
-      return;
-    }
-
-    foreach ($mappings as $mapping) {
-      if (!isset($extractedValues[$mapping->entityField])) {
-        continue;
-      }
-
-      if ($this->isEntityIdField($entity, $mapping->entityField)) {
-        continue;
-      }
-
-      $entity->set($mapping->entityField, $extractedValues[$mapping->entityField]);
-    }
+  private function hasExtractedValue(array $extractedValues, FieldMapping $mapping): bool {
+    return isset($extractedValues[$mapping->entityField]);
   }
 
   /**
@@ -191,11 +201,16 @@ class EntityUpsertService implements EntityUpsertServiceInterface {
    * @return bool
    *   TRUE if this field is an entity ID or bundle key.
    */
-  private function isEntityIdField(EntityInterface $entity, string $fieldName): bool {
+  private function isEntityIdField(
+    EntityInterface $entity,
+    string $fieldName,
+  ): bool {
     $entityType = $entity->getEntityType();
+
     $idKey = $entityType->getKey('id');
     $bundleKey = $entityType->getKey('bundle');
 
     return $fieldName === $idKey || ($bundleKey && $fieldName === $bundleKey);
   }
+
 }

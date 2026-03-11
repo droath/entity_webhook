@@ -153,4 +153,41 @@ class WebhookSourceTypeTest extends KernelTestBase {
     $this->assertNull(WebhookSourceType::load('deletable_source'));
   }
 
+  /**
+   * Tests that the endpoint property is stored and retrieved via getEndpointId().
+   */
+  public function testEndpointIdStoredAndRetrievedViaGetter(): void {
+    WebhookSourceType::create([
+      'id' => 'endpoint_source',
+      'label' => 'Endpoint Source',
+      'field_mappings' => [],
+      'verification_plugin' => '',
+      'verification_config' => [],
+      'endpoint' => 'my_endpoint',
+    ])->save();
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $loaded */
+    $loaded = WebhookSourceType::load('endpoint_source');
+
+    $this->assertSame('my_endpoint', $loaded->getEndpointId());
+  }
+
+  /**
+   * Tests that getEndpointId returns empty string when endpoint is not set.
+   */
+  public function testGetEndpointIdDefaultsToEmptyString(): void {
+    WebhookSourceType::create([
+      'id' => 'no_endpoint_source',
+      'label' => 'No Endpoint Source',
+      'field_mappings' => [],
+      'verification_plugin' => '',
+      'verification_config' => [],
+    ])->save();
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $loaded */
+    $loaded = WebhookSourceType::load('no_endpoint_source');
+
+    $this->assertSame('', $loaded->getEndpointId());
+  }
+
 }

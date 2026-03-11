@@ -96,4 +96,24 @@ class VerificationChainTest extends UnitTestCase {
     $this->assertFalse($chain->verify($request, [$firstPlugin, $secondPlugin]));
   }
 
+  /**
+   * Tests that a non-plugin object throws InvalidArgumentException.
+   *
+   * Passing an object that does not implement WebhookVerificationInterface is a
+   * programmer error and must not be silently ignored.
+   *
+   * @covers ::verify
+   */
+  public function testInvalidPluginThrowsInvalidArgumentException(): void {
+    $chain = new VerificationChain();
+    $request = Request::create('/webhook/test/source', 'POST');
+    $invalidPlugin = new \stdClass();
+
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage('stdClass');
+
+    // @phpstan-ignore argument.type (intentionally passing invalid type to test the guard)
+    $chain->verify($request, [$invalidPlugin]);
+  }
+
 }

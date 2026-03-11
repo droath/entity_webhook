@@ -81,6 +81,32 @@ class WebhookQueueItemTest extends UnitTestCase {
   }
 
   /**
+   * Tests that a malformed received_at value falls back to the current time.
+   */
+  public function testFromArrayWithMalformedDateFallsBackToCurrentTime(): void {
+    $before = new \DateTimeImmutable();
+
+    $item = WebhookQueueItem::fromArray([
+      'endpoint_id' => 'ep',
+      'source_type' => 'st',
+      'payload' => [],
+      'received_at' => 'not-a-valid-date!!@@##',
+      'source' => 'webhook',
+    ]);
+
+    $after = new \DateTimeImmutable();
+
+    $this->assertGreaterThanOrEqual(
+      $before->getTimestamp(),
+      $item->receivedAt->getTimestamp(),
+    );
+    $this->assertLessThanOrEqual(
+      $after->getTimestamp(),
+      $item->receivedAt->getTimestamp(),
+    );
+  }
+
+  /**
    * Tests round-trip serialization: toArray -> fromArray preserves all data.
    */
   public function testRoundTripSerializationPreservesData(): void {

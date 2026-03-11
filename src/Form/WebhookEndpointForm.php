@@ -6,24 +6,27 @@ namespace Drupal\entity_webhook\Form;
 
 use Drupal\Core\Entity\EntityForm;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\entity_webhook\Traits\AjaxFormStateTrait;
+use Drupal\Core\Entity\EntityTypeBundleInfoInterface;
+use Drupal\entity_webhook\Traits\ConfigEntityFormTrait;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides the add/edit form for WebhookEndpoint config entities.
  */
 class WebhookEndpointForm extends EntityForm {
+  use AjaxFormStateTrait;
+  use ConfigEntityFormTrait;
 
   /**
    * Constructs a WebhookEndpointForm.
    *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The entity type manager.
+   * @param \Drupal\Core\Entity\EntityTypeBundleInfoInterface $bundleInfo
+   *   The entity type bundle info service.
    */
   public function __construct(
-    EntityTypeManagerInterface $entityTypeManager,
+    protected EntityTypeBundleInfoInterface $bundleInfo,
   ) {
-    $this->entityTypeManager = $entityTypeManager;
   }
 
   /**
@@ -31,7 +34,7 @@ class WebhookEndpointForm extends EntityForm {
    */
   public static function create(ContainerInterface $container): static {
     return new static(
-      $container->get('entity_type.manager'),
+      $container->get('entity_type.bundle.info'),
     );
   }
 
@@ -44,48 +47,73 @@ class WebhookEndpointForm extends EntityForm {
     /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $entity */
     $entity = $this->entity;
 
-    $form['label'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Label'),
-      '#maxlength' => 255,
-      '#default_value' => $entity->label(),
-      '#required' => TRUE,
-    ];
+    $form['#prefix'] = '<div id="webhook-endpoint-form">';
+    $form['#suffix'] = '</div>';
 
-    $form['id'] = [
-      '#type' => 'machine_name',
-      '#default_value' => $entity->id(),
-      '#machine_name' => [
-        'exists' => '\Drupal\entity_webhook\Entity\WebhookEndpoint::load',
-      ],
-      '#disabled' => !$entity->isNew(),
-    ];
+    $form += $this->buildLabelIdElements(
+      '\Drupal\entity_webhook\Entity\WebhookEndpoint::load',
+      $entity,
+    );
+
+    $target_entity_type = $entity->getTargetEntityTypeId();
 
     $form['target_entity_type'] = [
       '#type' => 'select',
       '#title' => $this->t('Target Entity Type'),
       '#options' => $this->getContentEntityTypeOptions(),
-      '#default_value' => $entity->getTargetEntityTypeId(),
+      '#default_value' => $target_entity_type,
       '#required' => TRUE,
       '#empty_option' => $this->t('- Select -'),
+      '#ajax' => [
+        'method' => 'replaceWith',
+        'wrapper' => 'webhook-endpoint-form',
+        'callback' => [$this, 'ajaxRebuildForm'],
+      ],
     ];
 
-    $sourceTypeOptions = $this->getSourceTypeOptions();
+    $selectedEntityType = (string) $this->getFormStateValue(
+      'target_entity_type',
+      $form_state,
+      $entity->getTargetEntityTypeId(),
+    );
 
-    $form['source_types'] = [
-      '#type' => 'checkboxes',
-      '#title' => $this->t('Source Types'),
-      '#options' => $sourceTypeOptions,
-      '#default_value' => $entity->getSourceTypeIds(),
-      '#description' => $this->t('Select which source types this endpoint accepts.'),
-    ];
-
-    if (empty($sourceTypeOptions)) {
-      $form['source_types']['#description'] = $this->t('No source types available. <a href=":url">Create a source type</a> first.', [
-        ':url' => '/admin/config/services/entity-webhook/source-types/add',
-      ]);
+    if (!empty($selectedEntityType)) {
+      $bundleOptions = $this->getBundleOptions($selectedEntityType);
+      $selectedBundle = $this->getFormStateValue(
+        'target_entity_bundle',
+        $form_state,
+        $entity->getTargetEntityBundle(),
+      );
+      $form['target_entity_bundle'] = [
+        '#type' => 'select',
+        '#required' => TRUE,
+        '#title' => $this->t('Target Bundle'),
+        '#description' => $this->t(
+          'Optionally limit webhook processing to a specific bundle.',
+        ),
+        '#options' => $bundleOptions,
+        '#empty_option' => $this->t('- Select -'),
+        '#default_value' => $selectedBundle,
+      ];
     }
 
+    return $form;
+  }
+
+  /**
+   * AJAX callback that returns the entire form.
+   *
+   * Returning the full form (instead of just the bundle wrapper) ensures
+   * that Drupal rebuilds and revalidates the form with fresh values, which
+   * prevents stale bundle values from causing validation errors.
+   *
+   * @param array<string, mixed> $form
+   *   The form array.
+   *
+   * @return array<string, mixed>
+   *   The entire form element.
+   */
+  public function ajaxRebuildForm(array $form): array {
     return $form;
   }
 
@@ -95,11 +123,6 @@ class WebhookEndpointForm extends EntityForm {
   public function save(array $form, FormStateInterface $form_state): int {
     /** @var \Drupal\entity_webhook\Entity\WebhookEndpoint $entity */
     $entity = $this->entity;
-
-    $selectedSourceTypes = array_values(array_filter(
-      (array) $form_state->getValue('source_types'),
-    ));
-    $entity->set('source_types', $selectedSourceTypes);
 
     $status = parent::save($form, $form_state);
 
@@ -133,26 +156,21 @@ class WebhookEndpointForm extends EntityForm {
   }
 
   /**
-   * Returns an options array of available WebhookSourceType IDs to labels.
+   * Returns an options array of bundle IDs to labels for a given entity type.
+   *
+   * @param string $entityTypeId
+   *   The entity type machine name.
    *
    * @return array<string, string>
-   *   Keyed by source type ID, valued by label.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
-   * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *   Keyed by bundle ID, valued by label string. Empty if no entity type
+   *   given.
    */
-  protected function getSourceTypeOptions(): array {
-    $options = [];
-    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface[] $sourceTypes */
-    $sourceTypes = $this->entityTypeManager
-      ->getStorage('webhook_source_type')
-      ->loadMultiple();
-
-    foreach ($sourceTypes as $sourceType) {
-      $options[$sourceType->id()] = (string) $sourceType->label();
-    }
-
-    return $options;
+  protected function getBundleOptions(string $entityTypeId): array {
+    return array_map(
+      static function ($bundleData) {
+        return (string) $bundleData['label'];
+      },
+      $this->bundleInfo->getBundleInfo($entityTypeId),
+    );
   }
-
 }
