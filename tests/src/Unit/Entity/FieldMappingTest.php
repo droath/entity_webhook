@@ -23,12 +23,13 @@ class FieldMappingTest extends UnitTestCase {
   public function testConstructorStoresProperties(): void {
     $mapping = new FieldMapping(
       entityField: 'field_email',
-      jsonPath: '$.contact.email',
       isIdentifier: TRUE,
+      resolver: 'json_path',
+      resolverConfig: ['path' => '$.contact.email'],
     );
 
     $this->assertSame('field_email', $mapping->entityField);
-    $this->assertSame('$.contact.email', $mapping->jsonPath);
+    $this->assertSame(['path' => '$.contact.email'], $mapping->resolverConfig);
     $this->assertTrue($mapping->isIdentifier);
   }
 
@@ -40,7 +41,7 @@ class FieldMappingTest extends UnitTestCase {
   public function testIsIdentifierDefaultsFalse(): void {
     $mapping = new FieldMapping(
       entityField: 'title',
-      jsonPath: '$.name',
+      resolverConfig: ['path' => '$.name'],
     );
 
     $this->assertFalse($mapping->isIdentifier);
@@ -54,14 +55,15 @@ class FieldMappingTest extends UnitTestCase {
   public function testFromArrayCreatesFieldMapping(): void {
     $data = [
       'entity_field' => 'field_external_id',
-      'json_path' => '$.id',
       'is_identifier' => TRUE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.id'],
     ];
 
     $mapping = FieldMapping::fromArray($data);
 
     $this->assertSame('field_external_id', $mapping->entityField);
-    $this->assertSame('$.id', $mapping->jsonPath);
+    $this->assertSame(['path' => '$.id'], $mapping->resolverConfig);
     $this->assertTrue($mapping->isIdentifier);
   }
 
@@ -74,7 +76,7 @@ class FieldMappingTest extends UnitTestCase {
     $mapping = FieldMapping::fromArray([]);
 
     $this->assertSame('', $mapping->entityField);
-    $this->assertSame('', $mapping->jsonPath);
+    $this->assertSame([], $mapping->resolverConfig);
     $this->assertFalse($mapping->isIdentifier);
   }
 
@@ -86,16 +88,18 @@ class FieldMappingTest extends UnitTestCase {
   public function testToArrayReturnsConfigStorageStructure(): void {
     $mapping = new FieldMapping(
       entityField: 'title',
-      jsonPath: '$.name',
       isIdentifier: FALSE,
+      resolver: 'json_path',
+      resolverConfig: ['path' => '$.name'],
     );
 
     $expected = [
       'entity_field' => 'title',
-      'json_path' => '$.name',
       'is_identifier' => FALSE,
       'mutation_plugin' => '',
       'mutation_config' => [],
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
     ];
 
     $this->assertSame($expected, $mapping->toArray());
@@ -110,10 +114,11 @@ class FieldMappingTest extends UnitTestCase {
   public function testRoundTripPreservesValues(): void {
     $original = [
       'entity_field' => 'field_sku',
-      'json_path' => '$.product.sku',
       'is_identifier' => TRUE,
       'mutation_plugin' => '',
       'mutation_config' => [],
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.product.sku'],
     ];
 
     $result = FieldMapping::fromArray($original)->toArray();
@@ -129,11 +134,49 @@ class FieldMappingTest extends UnitTestCase {
   public function testFromArrayDefaultsToEmptyMutationValues(): void {
     $mapping = FieldMapping::fromArray([
       'entity_field' => 'title',
-      'json_path' => '$.name',
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
     ]);
 
     $this->assertSame('', $mapping->mutationPlugin);
     $this->assertSame([], $mapping->mutationConfig);
+  }
+
+  /**
+   * Tests that resolver fields default to json_path when absent from array.
+   *
+   * @covers ::fromArray
+   */
+  public function testFromArrayDefaultsToJsonPathResolver(): void {
+    $mapping = FieldMapping::fromArray([
+      'entity_field' => 'title',
+    ]);
+
+    $this->assertSame('json_path', $mapping->resolver);
+    $this->assertSame([], $mapping->resolverConfig);
+  }
+
+  /**
+   * Tests that resolver plugin and config are stored and returned correctly.
+   *
+   * @covers ::fromArray
+   * @covers ::toArray
+   */
+  public function testResolverRoundTripPreservesValues(): void {
+    $original = [
+      'entity_field' => 'field_source',
+      'is_identifier' => FALSE,
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+      'resolver' => 'static_value',
+      'resolver_config' => ['value' => 'shopify'],
+    ];
+
+    $mapping = FieldMapping::fromArray($original);
+
+    $this->assertSame('static_value', $mapping->resolver);
+    $this->assertSame(['value' => 'shopify'], $mapping->resolverConfig);
+    $this->assertSame($original, $mapping->toArray());
   }
 
   /**
@@ -146,10 +189,11 @@ class FieldMappingTest extends UnitTestCase {
   public function testMutationPluginRoundTripPreservesValues(): void {
     $original = [
       'entity_field' => 'field_price',
-      'json_path' => '$.price',
       'is_identifier' => FALSE,
       'mutation_plugin' => 'currency_convert',
       'mutation_config' => ['from' => 'USD', 'to' => 'EUR'],
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.price'],
     ];
 
     $mapping = FieldMapping::fromArray($original);

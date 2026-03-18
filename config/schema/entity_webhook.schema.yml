@@ -21,9 +21,6 @@ entity_webhook.webhook_source_type.*:
           entity_field:
             type: string
             label: 'Entity Field'
-          json_path:
-            type: string
-            label: 'JSONPath Expression'
           is_identifier:
             type: boolean
             label: 'Is Identifier'
@@ -33,6 +30,15 @@ entity_webhook.webhook_source_type.*:
           mutation_config:
             type: sequence
             label: 'Mutation Plugin Configuration'
+            sequence:
+              type: ignore
+              label: 'Configuration value'
+          resolver:
+            type: string
+            label: 'Value Resolver Plugin ID'
+          resolver_config:
+            type: sequence
+            label: 'Value Resolver Configuration'
             sequence:
               type: ignore
               label: 'Configuration value'

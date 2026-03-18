@@ -168,8 +168,8 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
       'id' => 'two_mappings',
       'label' => 'Two Mappings',
       'field_mappings' => [
-        ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => TRUE],
-        ['entity_field' => 'body', 'json_path' => '$.body', 'is_identifier' => FALSE],
+        ['entity_field' => 'title', 'is_identifier' => TRUE, 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.name']],
+        ['entity_field' => 'body', 'is_identifier' => FALSE, 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.body']],
       ],
       'verification_plugin' => '',
       'verification_config' => [],
@@ -211,7 +211,7 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
 
     $form_state = new FormState();
     $form_state->setValue('field_mappings', [
-      0 => ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => '0'],
+      0 => ['entity_field' => 'title', 'is_identifier' => '0', 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.name']],
     ]);
     $form_state->setValue('verification_plugin', '');
 
@@ -243,7 +243,7 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
 
     $form_state = new FormState();
     $form_state->setValue('field_mappings', [
-      0 => ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => '1'],
+      0 => ['entity_field' => 'title', 'is_identifier' => '1', 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.name']],
     ]);
     $form_state->setValue('verification_plugin', '');
 
@@ -274,7 +274,7 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
     $form_state->setValue('label', 'Mapped Source');
     $form_state->setValue('id', 'mapped_source');
     $form_state->setValue('field_mappings', [
-      0 => ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => '1'],
+      0 => ['entity_field' => 'title', 'is_identifier' => '1', 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.name']],
     ]);
     $form_state->setValue('verification_plugin', '');
 
@@ -298,7 +298,7 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
     $mappings = $saved->getFieldMappings();
     $this->assertCount(1, $mappings);
     $this->assertSame('title', $mappings[0]->entityField);
-    $this->assertSame('$.name', $mappings[0]->jsonPath);
+    $this->assertSame(['path' => '$.name'], $mappings[0]->resolverConfig);
     $this->assertTrue($mappings[0]->isIdentifier);
   }
 
@@ -357,7 +357,7 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
       'id' => 'stored_endpoint_source',
       'label' => 'Stored Endpoint Source',
       'field_mappings' => [
-        ['entity_field' => 'uid', 'json_path' => '$.user_id', 'is_identifier' => TRUE],
+        ['entity_field' => 'uid', 'is_identifier' => TRUE, 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.user_id']],
       ],
       'verification_plugin' => '',
       'verification_config' => [],
@@ -442,9 +442,9 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
       'id' => 'multi_mapping_source',
       'label' => 'Multi Mapping Source',
       'field_mappings' => [
-        ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => TRUE],
-        ['entity_field' => 'body', 'json_path' => '$.desc', 'is_identifier' => FALSE],
-        ['entity_field' => '', 'json_path' => '', 'is_identifier' => FALSE],
+        ['entity_field' => 'title', 'is_identifier' => TRUE, 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.name']],
+        ['entity_field' => 'body', 'is_identifier' => FALSE, 'resolver' => 'json_path', 'resolver_config' => ['path' => '$.desc']],
+        ['entity_field' => '', 'is_identifier' => FALSE, 'resolver' => 'json_path', 'resolver_config' => []],
       ],
       'verification_plugin' => '',
       'verification_config' => [],

@@ -49,13 +49,15 @@ class WebhookSourceTypeTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'field_external_id',
-          'json_path' => '$.id',
           'is_identifier' => TRUE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.id'],
         ],
         [
           'entity_field' => 'title',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
       ],
       'verification_plugin' => '',
@@ -83,18 +85,21 @@ class WebhookSourceTypeTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'field_external_id',
-          'json_path' => '$.id',
           'is_identifier' => TRUE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.id'],
         ],
         [
           'entity_field' => 'title',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
         [
           'entity_field' => 'field_sku',
-          'json_path' => '$.sku',
           'is_identifier' => TRUE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.sku'],
         ],
       ],
       'verification_plugin' => '',

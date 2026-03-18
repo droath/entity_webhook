@@ -66,13 +66,15 @@ class WebhookProcessorEventTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'type',
-          'json_path' => '$.bundle',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.bundle'],
         ],
         [
           'entity_field' => 'title',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
       ],
       'verification_plugin' => '',
@@ -203,13 +205,15 @@ class WebhookProcessorEventTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'nid',
-          'json_path' => '$.id',
           'is_identifier' => TRUE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.id'],
         ],
         [
           'entity_field' => 'title',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
       ],
       'verification_plugin' => '',

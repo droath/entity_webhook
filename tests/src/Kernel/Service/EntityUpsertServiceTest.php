@@ -61,7 +61,7 @@ class EntityUpsertServiceTest extends KernelTestBase {
    */
   public function testUpsertCreatesNewEntityWhenNoneExists(): void {
     $mappings = [
-      new FieldMapping('title', '$.name', isIdentifier: FALSE),
+      new FieldMapping(entityField: 'title', isIdentifier: FALSE, resolver: 'json_path', resolverConfig: ['path' => '$.name']),
     ];
     // extractedValues are post-JSONPath-extraction, keyed by entity field name.
     $extractedValues = ['title' => 'My New Product'];
@@ -85,8 +85,8 @@ class EntityUpsertServiceTest extends KernelTestBase {
     $existingId = $existing->id();
 
     $mappings = [
-      new FieldMapping('nid', '$.external_id', isIdentifier: TRUE),
-      new FieldMapping('title', '$.name', isIdentifier: FALSE),
+      new FieldMapping(entityField: 'nid', isIdentifier: TRUE, resolver: 'json_path', resolverConfig: ['path' => '$.external_id']),
+      new FieldMapping(entityField: 'title', isIdentifier: FALSE, resolver: 'json_path', resolverConfig: ['path' => '$.name']),
     ];
     // extractedValues are post-JSONPath-extraction, keyed by entity field name.
     $extractedValues = [

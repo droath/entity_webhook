@@ -15,15 +15,16 @@ use Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
+use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 
 /**
  * Orchestrates the full entity upsert pipeline for a single queue item.
  *
  * Loads WebhookEndpoint and WebhookSourceType config, extracts field values
- * from the payload using JSONPath, dispatches PreSave/PostSave events, and
- * delegates to EntityUpsertService. Failures are logged and skipped — no
- * exceptions propagate to the caller.
+ * from the payload using pluggable value resolvers and optional mutations,
+ * dispatches PreSave/PostSave events, and delegates to EntityUpsertService.
+ * Failures are logged and skipped — no exceptions propagate to the caller.
  */
 class WebhookProcessor implements WebhookProcessorInterface {
   /**
@@ -31,8 +32,6 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *
    * @param \Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface $validator
    *   The webhook request validator used to load config entities.
-   * @param \Drupal\entity_webhook\Service\JsonPathExtractorInterface $jsonPathExtractor
-   *   The JSONPath extractor service.
    * @param \Drupal\entity_webhook\Service\EntityUpsertServiceInterface $entityUpsert
    *   The entity upsert service.
    * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
@@ -41,14 +40,16 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The event dispatcher.
    * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface $mutationManager
    *   The field value mutation plugin manager.
+   * @param \Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface $resolverManager
+   *   The value resolver plugin manager.
    */
   public function __construct(
     protected readonly WebhookRequestValidatorInterface $validator,
-    protected readonly JsonPathExtractorInterface $jsonPathExtractor,
     protected readonly EntityUpsertServiceInterface $entityUpsert,
     protected readonly LoggerChannelInterface $logger,
     protected readonly EventDispatcherInterface $eventDispatcher,
     protected readonly FieldValueMutationManagerInterface $mutationManager,
+    protected readonly ValueResolverManagerInterface $resolverManager,
   ) {
   }
 
@@ -267,7 +268,10 @@ class WebhookProcessor implements WebhookProcessorInterface {
   }
 
   /**
-   * Extracts field values from the payload using each mapping's JSONPath.
+   * Extracts field values from the payload using each mapping's resolver.
+   *
+   * For each field mapping, instantiates the configured value resolver plugin
+   * to extract the value. Applies the optional mutation plugin after extraction.
    *
    * @param \Drupal\entity_webhook\Entity\FieldMapping[] $mappings
    *   All field mappings for the source type.
@@ -281,10 +285,7 @@ class WebhookProcessor implements WebhookProcessorInterface {
     $values = [];
 
     foreach ($mappings as $mapping) {
-      $extracted = $this->jsonPathExtractor->extract(
-        $payload,
-        $mapping->jsonPath,
-      );
+      $extracted = $this->resolveValue($mapping, $payload);
 
       if ($extracted !== NULL) {
         $extracted = $this->applyMutation($mapping, $extracted);
@@ -293,6 +294,39 @@ class WebhookProcessor implements WebhookProcessorInterface {
     }
 
     return $values;
+  }
+
+  /**
+   * Resolves a field value from the payload using the mapping's resolver.
+   *
+   * @param \Drupal\entity_webhook\Entity\FieldMapping $mapping
+   *   The field mapping with resolver configuration.
+   * @param array<string, mixed> $payload
+   *   The decoded JSON payload.
+   *
+   * @return mixed
+   *   The resolved value, or NULL on failure.
+   */
+  private function resolveValue(FieldMapping $mapping, array $payload): mixed {
+    try {
+      $resolver = $this->resolverManager->createInstance(
+        $mapping->resolver,
+        $mapping->resolverConfig,
+      );
+
+      return $resolver->resolve($payload);
+    } catch (\Throwable $e) {
+      $this->logger->error(
+        'Value resolver plugin @plugin failed for field @field: @message',
+        [
+          '@plugin' => $mapping->resolver,
+          '@field' => $mapping->entityField,
+          '@message' => $e->getMessage(),
+        ],
+      );
+
+      return NULL;
+    }
   }
 
   /**

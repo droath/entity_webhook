@@ -12,6 +12,7 @@ use Drupal\Tests\UnitTestCase;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
+use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
@@ -38,17 +39,20 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
     ?EntityFieldManagerInterface $entityFieldManager = NULL,
     ?WebhookVerificationManagerInterface $verificationManager = NULL,
     ?FieldValueMutationManagerInterface $mutationManager = NULL,
+    ?ValueResolverManagerInterface $resolverManager = NULL,
   ): WebhookSourceTypeForm {
     $routeMatch = $this->createMock(RouteMatchInterface::class);
     $entityFieldManager ??= $this->createMock(EntityFieldManagerInterface::class);
     $verificationManager ??= $this->createMock(WebhookVerificationManagerInterface::class);
     $mutationManager ??= $this->createMock(FieldValueMutationManagerInterface::class);
+    $resolverManager ??= $this->createMock(ValueResolverManagerInterface::class);
 
     $form = new WebhookSourceTypeForm(
       $routeMatch,
       $entityFieldManager,
       $verificationManager,
       $mutationManager,
+      $resolverManager,
     );
 
     $translation = $this->createMock(TranslationInterface::class);
@@ -155,7 +159,7 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
    */
   public function testValidateFormSetsErrorWhenMappingsExistButNoneAreIdentifiers(): void {
     $nonEmptyMappings = [
-      0 => ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => '0'],
+      0 => ['entity_field' => 'title', 'is_identifier' => '0'],
     ];
 
     $form = $this->createForm();
@@ -184,7 +188,7 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
    */
   public function testValidateFormDoesNotSetErrorWhenIdentifierPresent(): void {
     $nonEmptyMappings = [
-      0 => ['entity_field' => 'title', 'json_path' => '$.name', 'is_identifier' => '1'],
+      0 => ['entity_field' => 'title', 'is_identifier' => '1'],
     ];
 
     $form = $this->createForm();
@@ -221,7 +225,7 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
     $formState->method('getUserInput')->willReturn([]);
     $formState->method('getValue')->willReturnMap([
       ['field_mappings', NULL, [
-        0 => ['entity_field' => '', 'json_path' => '', 'is_identifier' => '0'],
+        0 => ['entity_field' => '', 'is_identifier' => '0'],
       ]],
       ['verification_plugin', NULL, ''],
     ]);

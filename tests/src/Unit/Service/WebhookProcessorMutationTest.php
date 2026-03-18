@@ -12,7 +12,8 @@ use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\entity_webhook\Service\EntityUpsertServiceInterface;
-use Drupal\entity_webhook\Service\JsonPathExtractorInterface;
+use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverInterface;
+use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
 use Drupal\entity_webhook\Service\WebhookProcessor;
 use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
 use Drupal\Tests\UnitTestCase;
@@ -49,10 +50,11 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $mapping = new FieldMapping(
       entityField: 'title',
-      jsonPath: '$.name',
       isIdentifier: FALSE,
       mutationPlugin: 'string_replace',
       mutationConfig: [],
+      resolver: 'json_path',
+      resolverConfig: ['path' => '$.name'],
     );
 
     $capturedValues = [];
@@ -91,10 +93,11 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $mapping = new FieldMapping(
       entityField: 'title',
-      jsonPath: '$.name',
       isIdentifier: FALSE,
       mutationPlugin: 'broken_plugin',
       mutationConfig: [],
+      resolver: 'json_path',
+      resolverConfig: ['path' => '$.name'],
     );
 
     $logger = $this->createMock(LoggerChannelInterface::class);
@@ -135,10 +138,11 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $mapping = new FieldMapping(
       entityField: 'title',
-      jsonPath: '$.name',
       isIdentifier: FALSE,
       mutationPlugin: '',
       mutationConfig: [],
+      resolver: 'json_path',
+      resolverConfig: ['path' => '$.name'],
     );
 
     $capturedValues = [];
@@ -197,19 +201,22 @@ class WebhookProcessorMutationTest extends UnitTestCase {
     $validator->method('loadEndpoint')->willReturn($endpoint);
     $validator->method('loadSourceType')->willReturn($sourceType);
 
-    $jsonPathExtractor = $this->createMock(JsonPathExtractorInterface::class);
-    $jsonPathExtractor->method('extract')->willReturn($extractedValue);
+    $resolverPlugin = $this->createMock(ValueResolverInterface::class);
+    $resolverPlugin->method('resolve')->willReturn($extractedValue);
+
+    $resolverManager = $this->createMock(ValueResolverManagerInterface::class);
+    $resolverManager->method('createInstance')->willReturn($resolverPlugin);
 
     $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
     $eventDispatcher->method('dispatch')->willReturnArgument(0);
 
     return new WebhookProcessor(
       validator: $validator,
-      jsonPathExtractor: $jsonPathExtractor,
       entityUpsert: $entityUpsert,
       logger: $logger ?? $this->createMock(LoggerChannelInterface::class),
       eventDispatcher: $eventDispatcher,
       mutationManager: $mutationManager,
+      resolverManager: $resolverManager,
     );
   }
 

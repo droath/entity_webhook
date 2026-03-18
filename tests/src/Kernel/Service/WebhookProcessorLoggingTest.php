@@ -68,13 +68,15 @@ class WebhookProcessorLoggingTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'type',
-          'json_path' => '$.bundle',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.bundle'],
         ],
         [
           'entity_field' => 'title',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
       ],
       'verification_plugin' => '',
@@ -131,8 +133,9 @@ class WebhookProcessorLoggingTest extends KernelTestBase {
       'field_mappings' => [
         [
           'entity_field' => 'nonexistent_field_xyz',
-          'json_path' => '$.name',
           'is_identifier' => FALSE,
+          'resolver' => 'json_path',
+          'resolver_config' => ['path' => '$.name'],
         ],
       ],
       'verification_plugin' => '',
