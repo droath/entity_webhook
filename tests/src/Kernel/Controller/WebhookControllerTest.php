@@ -43,7 +43,6 @@ class WebhookControllerTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'test_source',
       'label' => 'Test Source',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -112,7 +111,6 @@ class WebhookControllerTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'unassociated_source',
       'label' => 'Unassociated Source',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -134,7 +132,6 @@ class WebhookControllerTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'secured_source',
       'label' => 'Secured Source',
-      'field_mappings' => [],
       'verification_plugin' => 'hmac_verification',
       'verification_config' => [
         'secret' => 'correct-secret',
@@ -171,7 +168,6 @@ class WebhookControllerTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'hmac_source',
       'label' => 'HMAC Source',
-      'field_mappings' => [],
       'verification_plugin' => 'hmac_verification',
       'verification_config' => [
         'secret' => $secret,

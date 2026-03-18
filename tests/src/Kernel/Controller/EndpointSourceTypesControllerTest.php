@@ -36,7 +36,6 @@ class EndpointSourceTypesControllerTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'shopify',
       'label' => 'Shopify',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();

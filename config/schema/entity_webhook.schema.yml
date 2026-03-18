@@ -1,3 +1,41 @@
+entity_webhook.webhook_field_mapping.*:
+  type: config_entity
+  label: 'Webhook Field Mapping'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    source_type:
+      type: string
+      label: 'Parent source type ID'
+    entity_field:
+      type: string
+      label: 'Entity Field'
+    is_identifier:
+      type: boolean
+      label: 'Is Identifier'
+    resolver:
+      type: string
+      label: 'Value Resolver Plugin ID'
+    resolver_config:
+      type: sequence
+      label: 'Resolver Configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'
+    mutation_plugin:
+      type: string
+      label: 'Mutation Plugin ID'
+    mutation_config:
+      type: sequence
+      label: 'Mutation Configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'
+
 entity_webhook.webhook_source_type.*:
   type: config_entity
   label: 'Webhook Source Type'
@@ -11,37 +49,6 @@ entity_webhook.webhook_source_type.*:
     endpoint:
       type: string
       label: 'Parent endpoint ID'
-    field_mappings:
-      type: sequence
-      label: 'Field Mappings'
-      sequence:
-        type: mapping
-        label: 'Field Mapping'
-        mapping:
-          entity_field:
-            type: string
-            label: 'Entity Field'
-          is_identifier:
-            type: boolean
-            label: 'Is Identifier'
-          mutation_plugin:
-            type: string
-            label: 'Mutation Plugin ID'
-          mutation_config:
-            type: sequence
-            label: 'Mutation Plugin Configuration'
-            sequence:
-              type: ignore
-              label: 'Configuration value'
-          resolver:
-            type: string
-            label: 'Value Resolver Plugin ID'
-          resolver_config:
-            type: sequence
-            label: 'Value Resolver Configuration'
-            sequence:
-              type: ignore
-              label: 'Configuration value'
     verification_plugin:
       type: string
       label: 'Verification Plugin ID'

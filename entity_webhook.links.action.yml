@@ -9,3 +9,9 @@ entity.webhook_endpoint.source_types.add:
   title: 'Add source type'
   appears_on:
     - entity.webhook_endpoint.source_types
+
+entity.webhook_field_mapping.add_form:
+  route_name: entity.webhook_field_mapping.add_form
+  title: 'Add field mapping'
+  appears_on:
+    - entity.webhook_field_mapping.collection

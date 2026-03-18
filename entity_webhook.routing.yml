@@ -55,3 +55,63 @@ entity.webhook_source_type.edit_form:
         type: entity:webhook_endpoint
       webhook_source_type:
         type: entity:webhook_source_type
+
+entity.webhook_field_mapping.collection:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/field-mappings'
+  defaults:
+    _entity_list: 'webhook_field_mapping'
+    _title: 'Field mappings'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+      webhook_source_type:
+        type: entity:webhook_source_type
+
+entity.webhook_field_mapping.add_form:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/field-mappings/add'
+  defaults:
+    _entity_form: 'webhook_field_mapping.add'
+    _title: 'Add field mapping'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+      webhook_source_type:
+        type: entity:webhook_source_type
+
+entity.webhook_field_mapping.edit_form:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/field-mappings/{webhook_field_mapping}/edit'
+  defaults:
+    _entity_form: 'webhook_field_mapping.edit'
+    _title: 'Edit field mapping'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+      webhook_source_type:
+        type: entity:webhook_source_type
+      webhook_field_mapping:
+        type: entity:webhook_field_mapping
+
+entity.webhook_field_mapping.delete_form:
+  path: '/admin/config/services/entity-webhook/endpoints/{webhook_endpoint}/source-types/{webhook_source_type}/field-mappings/{webhook_field_mapping}/delete'
+  defaults:
+    _entity_form: 'webhook_field_mapping.delete'
+    _title: 'Delete field mapping'
+  requirements:
+    _permission: 'administer entity_webhook'
+  options:
+    parameters:
+      webhook_endpoint:
+        type: entity:webhook_endpoint
+      webhook_source_type:
+        type: entity:webhook_source_type
+      webhook_field_mapping:
+        type: entity:webhook_field_mapping

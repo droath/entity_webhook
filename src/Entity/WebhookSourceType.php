@@ -14,8 +14,9 @@ use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
 /**
  * Defines the WebhookSourceType config entity.
  *
- * Stores field mappings, identifier configuration, and verification plugin
- * settings for a specific external payload source.
+ * Stores identifier configuration and verification plugin settings for a
+ * specific external payload source. Field mappings are stored as child
+ * WebhookFieldMapping config entities and loaded dynamically.
  */
 #[ConfigEntityType(
   id: 'webhook_source_type',
@@ -48,7 +49,6 @@ use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
     'id',
     'label',
     'endpoint',
-    'field_mappings',
     'verification_plugin',
     'verification_config',
   ],
@@ -62,13 +62,6 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
 
   /** The parent endpoint machine name. */
   protected string $endpoint = '';
-
-  /**
-   * Raw field mappings configuration array.
-   *
-   * @var array<int, array<string, mixed>>
-   */
-  protected array $field_mappings = [];
 
   /** The verification plugin ID. */
   protected string $verification_plugin = '';
@@ -106,10 +99,18 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
    * {@inheritdoc}
    */
   public function getFieldMappings(): array {
-    return array_map(
-      static fn (array $data) => FieldMapping::fromArray($data),
-      $this->field_mappings,
-    );
+    $entities = \Drupal::entityTypeManager()
+      ->getStorage('webhook_field_mapping')
+      ->loadByProperties(['source_type' => $this->id()]);
+
+    $result = [];
+    foreach ($entities as $entity) {
+      if ($entity instanceof WebhookFieldMappingInterface) {
+        $result[] = $entity->toFieldMapping();
+      }
+    }
+
+    return $result;
   }
 
   /**
@@ -134,5 +135,19 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
    */
   public function getVerificationConfig(): array {
     return $this->verification_config;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  #[\Override]
+  protected function urlRouteParameters($rel): array {
+    $parameters = parent::urlRouteParameters($rel);
+
+    if ($this->endpoint !== '') {
+      $parameters['webhook_endpoint'] = $this->endpoint;
+    }
+
+    return $parameters;
   }
 }

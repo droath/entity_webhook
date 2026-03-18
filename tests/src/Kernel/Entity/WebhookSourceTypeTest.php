@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\entity_webhook\Kernel\Entity;
 
+use Drupal\entity_webhook\Entity\WebhookFieldMapping;
 use Drupal\entity_webhook\Entity\WebhookSourceType;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\KernelTests\KernelTestBase;
@@ -27,7 +28,6 @@ class WebhookSourceTypeTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'shopify_order',
       'label' => 'Shopify Order',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -40,79 +40,148 @@ class WebhookSourceTypeTest extends KernelTestBase {
   }
 
   /**
-   * Tests that field mappings are stored and retrieved correctly.
+   * Tests that getFieldMappings returns FieldMapping objects from child entities.
+   *
+   * Each WebhookFieldMapping config entity belonging to a source type is
+   * returned as a FieldMapping value object by getFieldMappings(). This test
+   * verifies the child-entity-to-value-object adapter chain end-to-end.
    */
-  public function testFieldMappingsStoredAndRetrieved(): void {
+  public function testFieldMappingsReturnedFromChildEntities(): void {
+    // Arrange
     WebhookSourceType::create([
       'id' => 'test_source',
       'label' => 'Test Source',
-      'field_mappings' => [
-        [
-          'entity_field' => 'field_external_id',
-          'is_identifier' => TRUE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.id'],
-        ],
-        [
-          'entity_field' => 'title',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
 
+    WebhookFieldMapping::create([
+      'id' => 'test_source.field_external_id',
+      'label' => 'External ID',
+      'source_type' => 'test_source',
+      'entity_field' => 'field_external_id',
+      'is_identifier' => TRUE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.id'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'test_source.title',
+      'label' => 'Title',
+      'source_type' => 'test_source',
+      'entity_field' => 'title',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    // Act
     /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $loaded */
     $loaded = WebhookSourceType::load('test_source');
     $mappings = $loaded->getFieldMappings();
 
+    // Assert
     $this->assertCount(2, $mappings);
-    $this->assertSame('field_external_id', $mappings[0]->entityField);
-    $this->assertTrue($mappings[0]->isIdentifier);
-    $this->assertSame('title', $mappings[1]->entityField);
-    $this->assertFalse($mappings[1]->isIdentifier);
+
+    $fieldNames = array_map(static fn ($m) => $m->entityField, $mappings);
+    $this->assertContains('field_external_id', $fieldNames);
+    $this->assertContains('title', $fieldNames);
+
+    $identifierMapping = array_values(array_filter($mappings, static fn ($m) => $m->entityField === 'field_external_id'))[0];
+    $this->assertTrue($identifierMapping->isIdentifier);
+
+    $titleMapping = array_values(array_filter($mappings, static fn ($m) => $m->entityField === 'title'))[0];
+    $this->assertFalse($titleMapping->isIdentifier);
   }
 
   /**
    * Tests that getIdentifierMappings returns only identifier-flagged mappings.
    */
   public function testGetIdentifierMappingsReturnsOnlyIdentifiers(): void {
+    // Arrange
     WebhookSourceType::create([
       'id' => 'source_with_identifiers',
       'label' => 'Source With Identifiers',
-      'field_mappings' => [
-        [
-          'entity_field' => 'field_external_id',
-          'is_identifier' => TRUE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.id'],
-        ],
-        [
-          'entity_field' => 'title',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-        [
-          'entity_field' => 'field_sku',
-          'is_identifier' => TRUE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.sku'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
 
+    WebhookFieldMapping::create([
+      'id' => 'source_with_identifiers.field_external_id',
+      'label' => 'External ID',
+      'source_type' => 'source_with_identifiers',
+      'entity_field' => 'field_external_id',
+      'is_identifier' => TRUE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.id'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'source_with_identifiers.title',
+      'label' => 'Title',
+      'source_type' => 'source_with_identifiers',
+      'entity_field' => 'title',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'source_with_identifiers.field_sku',
+      'label' => 'SKU',
+      'source_type' => 'source_with_identifiers',
+      'entity_field' => 'field_sku',
+      'is_identifier' => TRUE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.sku'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    // Act
     /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $loaded */
     $loaded = WebhookSourceType::load('source_with_identifiers');
     $identifiers = $loaded->getIdentifierMappings();
 
+    // Assert
     $this->assertCount(2, $identifiers);
-    $this->assertSame('field_external_id', $identifiers[0]->entityField);
-    $this->assertSame('field_sku', $identifiers[1]->entityField);
+
+    $identifierFields = array_map(static fn ($m) => $m->entityField, $identifiers);
+    $this->assertContains('field_external_id', $identifierFields);
+    $this->assertContains('field_sku', $identifierFields);
+
+    foreach ($identifiers as $identifier) {
+      $this->assertTrue($identifier->isIdentifier, "Mapping for '{$identifier->entityField}' should be an identifier.");
+    }
+  }
+
+  /**
+   * Tests that getFieldMappings returns an empty array when no child entities exist.
+   */
+  public function testGetFieldMappingsReturnsEmptyArrayWhenNoChildEntities(): void {
+    // Arrange
+    WebhookSourceType::create([
+      'id' => 'empty_source',
+      'label' => 'Empty Source',
+      'verification_plugin' => '',
+      'verification_config' => [],
+    ])->save();
+
+    // Act
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $loaded */
+    $loaded = WebhookSourceType::load('empty_source');
+    $mappings = $loaded->getFieldMappings();
+
+    // Assert
+    $this->assertSame([], $mappings);
   }
 
   /**
@@ -122,7 +191,6 @@ class WebhookSourceTypeTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'updatable_source',
       'label' => 'Original Label',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -145,7 +213,6 @@ class WebhookSourceTypeTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'deletable_source',
       'label' => 'Deletable Source',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -165,7 +232,6 @@ class WebhookSourceTypeTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'endpoint_source',
       'label' => 'Endpoint Source',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
       'endpoint' => 'my_endpoint',
@@ -184,7 +250,6 @@ class WebhookSourceTypeTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'no_endpoint_source',
       'label' => 'No Endpoint Source',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();

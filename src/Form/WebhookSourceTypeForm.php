@@ -10,32 +10,22 @@ use Drupal\Core\Form\SubformState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
-use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\entity_webhook\Traits\AjaxFormStateTrait;
 use Drupal\entity_webhook\Traits\ConfigEntityFormTrait;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverInterface;
-use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
-use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationInterface;
-use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
  * Provides the add/edit form for WebhookSourceType config entities.
+ *
+ * Handles label, machine name, and verification plugin configuration only.
+ * Field mappings are managed separately via WebhookFieldMappingForm.
  */
 class WebhookSourceTypeForm extends EntityForm {
   use AjaxFormStateTrait;
   use ConfigEntityFormTrait;
-
-  /**
-   * The entity field manager service.
-   *
-   * Not readonly because DependencySerializationTrait::__wakeup() must
-   * re-inject this property after the form is unserialized during AJAX.
-   */
-  protected EntityFieldManagerInterface $entityFieldManager;
 
   /**
    * The webhook verification plugin manager.
@@ -46,47 +36,19 @@ class WebhookSourceTypeForm extends EntityForm {
   protected WebhookVerificationManagerInterface $verificationManager;
 
   /**
-   * The field value mutation plugin manager.
-   *
-   * Not readonly because DependencySerializationTrait::__wakeup() must
-   * re-inject this property after the form is unserialized during AJAX.
-   */
-  protected FieldValueMutationManagerInterface $mutationManager;
-
-  /**
-   * The value resolver plugin manager.
-   *
-   * Not readonly because DependencySerializationTrait::__wakeup() must
-   * re-inject this property after the form is unserialized during AJAX.
-   */
-  protected ValueResolverManagerInterface $resolverManager;
-
-  /**
    * Constructs a WebhookSourceTypeForm.
    *
    * @param \Drupal\Core\Routing\RouteMatchInterface $routeMatch
    *   The current route match.
-   * @param \Drupal\Core\Entity\EntityFieldManagerInterface $entityFieldManager
-   *   The entity field manager.
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface $verificationManager
    *   The webhook verification plugin manager.
-   * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface $mutationManager
-   *   The field value mutation plugin manager.
-   * @param \Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface $resolverManager
-   *   The value resolver plugin manager.
    */
   public function __construct(
     RouteMatchInterface $routeMatch,
-    EntityFieldManagerInterface $entityFieldManager,
     WebhookVerificationManagerInterface $verificationManager,
-    FieldValueMutationManagerInterface $mutationManager,
-    ValueResolverManagerInterface $resolverManager,
   ) {
     $this->routeMatch = $routeMatch;
-    $this->entityFieldManager = $entityFieldManager;
     $this->verificationManager = $verificationManager;
-    $this->mutationManager = $mutationManager;
-    $this->resolverManager = $resolverManager;
   }
 
   /**
@@ -95,10 +57,7 @@ class WebhookSourceTypeForm extends EntityForm {
   public static function create(ContainerInterface $container): static {
     return new static(
       $container->get('current_route_match'),
-      $container->get('entity_field.manager'),
       $container->get('plugin.manager.webhook_verification'),
-      $container->get('plugin.manager.field_value_mutation'),
-      $container->get('plugin.manager.value_resolver'),
     );
   }
 
@@ -115,56 +74,6 @@ class WebhookSourceTypeForm extends EntityForm {
       '\Drupal\entity_webhook\Entity\WebhookSourceType::load',
       $entity,
     );
-
-    $form['field_mappings'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Field Mappings'),
-      '#open' => TRUE,
-      '#tree' => TRUE,
-      '#prefix' => '<div id="field-mappings-wrapper">',
-      '#suffix' => '</div>',
-    ];
-    $endpoint = $this->resolveEndpoint();
-
-    $userInput = $form_state->getUserInput();
-    $inputMappings = $userInput['field_mappings'] ?? NULL;
-    $existingMappings = $entity->get('field_mappings') ?? [];
-
-    $mappingsCount = $this->resolveMappingsCount($existingMappings, $form_state);
-
-    for ($delta = 0; $delta < $mappingsCount; $delta++) {
-      $defaults = $this->resolveFieldMappingDefaults($delta, $existingMappings, $inputMappings);
-      $form['field_mappings'][$delta] = $this->buildFieldMappingRow(
-        $delta,
-        $defaults,
-        $endpoint,
-      );
-      $this->buildResolverConfigSubform(
-        $form['field_mappings'][$delta],
-        $form,
-        $delta,
-        $defaults,
-        $form_state,
-      );
-      $this->buildMutationConfigSubform(
-        $form['field_mappings'][$delta],
-        $form,
-        $delta,
-        $defaults,
-        $form_state,
-      );
-    }
-
-    $form['field_mappings']['add_mapping'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Add field mapping'),
-      '#submit' => [[$this, 'addFieldMappingRow']],
-      '#ajax' => [
-        'wrapper' => 'field-mappings-wrapper',
-        'callback' => [$this, 'fieldMappingsCallback'],
-      ],
-      '#limit_validation_errors' => [],
-    ];
 
     $form['verification'] = [
       '#type' => 'details',
@@ -217,21 +126,6 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * AJAX callback for the field mappings wrapper.
-   *
-   * @param array<string, mixed> $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array<string, mixed>
-   *   The field mappings element.
-   */
-  public function fieldMappingsCallback(array &$form, FormStateInterface $form_state): array {
-    return $form['field_mappings'];
-  }
-
-  /**
    * AJAX callback that returns the verification_config container element.
    *
    * @param array<string, mixed> $form
@@ -247,99 +141,19 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * AJAX callback that returns the mutation_config container for a mapping row.
-   *
-   * @param array<string, mixed> $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array<string, mixed>
-   *   The mutation config container element for the triggering row.
+   * {@inheritdoc}
    */
-  public function ajaxUpdateMutationConfig(array &$form, FormStateInterface $form_state): array {
-    $trigger = $form_state->getTriggeringElement();
-    $delta = $trigger['#parents'][1];
-
-    return $form['field_mappings'][$delta]['mutation_config'];
-  }
-
-  /**
-   * AJAX callback that returns the resolver_config container for a mapping row.
-   *
-   * @param array<string, mixed> $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array<string, mixed>
-   *   The resolver config container element for the triggering row.
-   */
-  public function ajaxUpdateResolverConfig(array &$form, FormStateInterface $form_state): array {
-    $trigger = $form_state->getTriggeringElement();
-    $delta = $trigger['#parents'][1];
-
-    return $form['field_mappings'][$delta]['resolver_config'];
-  }
-
-  /**
-   * Submit handler for adding a new field mapping row.
-   *
-   * @param array<string, mixed> $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   */
-  public function addFieldMappingRow(array &$form, FormStateInterface $form_state): void {
-    $count = $form_state->get('field_mappings_count') ?? 1;
-    $form_state->set('field_mappings_count', $count + 1);
-    $form_state->setRebuild();
+  public function validateForm(array &$form, FormStateInterface $form_state): void {
+    parent::validateForm($form, $form_state);
+    $this->validatePluginConfigurationForm($form, $form_state);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function validateForm(array &$form, FormStateInterface $form_state): void {
-    parent::validateForm($form, $form_state);
-
-    if ($this->isAjaxMappingOperation($form_state)) {
-      return;
-    }
-
-    $this->validateIdentifierRequirement($form_state);
-    $this->validatePluginConfigurationForm($form, $form_state);
-    $this->validateResolverPluginForms($form, $form_state);
-    $this->validateMutationPluginForms($form, $form_state);
-  }
-
-  /**
-   * Submit handler for removing a field mapping row.
-   *
-   * @param array<string, mixed> $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   */
-  public function removeFieldMappingRow(
-    array &$form,
-    FormStateInterface $form_state,
-  ): void {
-    $triggeringElement = $form_state->getTriggeringElement();
-    $name = $triggeringElement['#name'] ?? '';
-    $delta = $this->parseDeltaFromElementName($name);
-
-    $userInput = $form_state->getUserInput();
-    $mappings = $userInput['field_mappings'] ?? [];
-    unset($mappings[$delta]);
-    $mappings = array_values($mappings);
-
-    $userInput['field_mappings'] = $mappings;
-    $form_state->setUserInput($userInput);
-
-    $count = $form_state->get('field_mappings_count') ?? 1;
-    $form_state->set('field_mappings_count', max(1, $count - 1));
-
-    $form_state->setRebuild();
+  public function submitForm(array &$form, FormStateInterface $form_state): void {
+    $this->submitPluginConfigurationForm($form, $form_state);
+    parent::submitForm($form, $form_state);
   }
 
   /**
@@ -349,7 +163,6 @@ class WebhookSourceTypeForm extends EntityForm {
     /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $entity */
     $entity = $this->entity;
 
-    $this->applyFieldMappings($form_state);
     $this->applyVerificationConfig($form_state);
 
     $endpoint = $this->resolveEndpoint();
@@ -388,17 +201,6 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * {@inheritdoc}
-   */
-  public function submitForm(array &$form, FormStateInterface $form_state): void {
-    $this->submitPluginConfigurationForm($form, $form_state);
-    $this->submitResolverPluginForms($form, $form_state);
-    $this->submitMutationPluginForms($form, $form_state);
-
-    parent::submitForm($form, $form_state);
-  }
-
-  /**
    * Resolves the active WebhookEndpoint from the current route parameter.
    *
    * @return \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null
@@ -408,36 +210,6 @@ class WebhookSourceTypeForm extends EntityForm {
     $endpoint = $this->routeMatch->getParameter('webhook_endpoint');
 
     return $endpoint instanceof WebhookEndpointInterface ? $endpoint : NULL;
-  }
-
-  /**
-   * Resolves the number of field mapping rows to render.
-   *
-   * On the initial page load the count is initialized from the entity's saved
-   * mappings (minimum one) and stored in form state. Subsequent AJAX rebuilds
-   * read the stored counter, which is incremented by addFieldMappingRow() and
-   * decremented by removeFieldMappingRow().
-   *
-   * @param array<int, array<string, mixed>> $existingMappings
-   *   The entity's stored field mappings.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @return int
-   *   The number of rows to render.
-   */
-  protected function resolveMappingsCount(
-    array $existingMappings,
-    FormStateInterface $form_state,
-  ): int {
-    $count = $form_state->get('field_mappings_count');
-
-    if ($count === NULL) {
-      $count = max(count($existingMappings), 1);
-      $form_state->set('field_mappings_count', $count);
-    }
-
-    return $count;
   }
 
   /**
@@ -483,84 +255,6 @@ class WebhookSourceTypeForm extends EntityForm {
       $form_state,
       $entity->getVerificationPlugin(),
     );
-  }
-
-  /**
-   * Resolves the selected mutation plugin ID for a given mapping row.
-   *
-   * Checks user input first (for AJAX rebuilds) then form state values. Falls
-   * back to the stored default from the entity or existing user input when
-   * neither source has the key yet (initial page load).
-   *
-   * @param int $delta
-   *   The row index.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   * @param string $default
-   *   The fallback plugin ID, typically from entity data.
-   *
-   * @return string|null
-   *   The plugin ID, or NULL if no plugin is selected.
-   */
-  protected function resolveSelectedMutationPlugin(
-    int $delta,
-    FormStateInterface $form_state,
-    string $default = '',
-  ): ?string {
-    return $this->getFormStateValue(
-      ['field_mappings', $delta, 'mutation_plugin'],
-      $form_state,
-      $default,
-    );
-  }
-
-  /**
-   * Checks whether the triggering element is an AJAX mapping operation.
-   *
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @return bool
-   *   TRUE if the trigger is an added or remove mapping AJAX button.
-   */
-  protected function isAjaxMappingOperation(
-    FormStateInterface $form_state,
-  ): bool {
-    $triggeringElement = $form_state->getTriggeringElement();
-    $name = $triggeringElement['#name'] ?? '';
-
-    return str_contains($name, 'add_mapping')
-      || str_contains($name, 'remove_mapping');
-  }
-
-  /**
-   * Validates that at least one field mapping is marked as an identifier.
-   *
-   * Skips validation when no non-empty mappings exist (entity_field must be
-   * filled for a mapping to be considered non-empty).
-   *
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function validateIdentifierRequirement(FormStateInterface $form_state): void {
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-    $nonEmptyMappings = $this->filterNonEmptyMappings($rawMappings);
-
-    if (empty($nonEmptyMappings)) {
-      return;
-    }
-
-    $identifierCount = count(array_filter(
-      $nonEmptyMappings,
-      static fn (array $row): bool => !empty($row['is_identifier']),
-    ));
-
-    if ($identifierCount === 0) {
-      $form_state->setErrorByName(
-        'field_mappings',
-        $this->t('At least one field mapping must be marked as an identifier.'),
-      );
-    }
   }
 
   /**
@@ -650,178 +344,6 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * Validates each field mapping row's mutation plugin configuration form.
-   *
-   * @param array $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\PluginException
-   */
-  protected function validateMutationPluginForms(
-    array &$form,
-    FormStateInterface $form_state,
-  ): void {
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-
-    foreach ($rawMappings as $delta => $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-
-      $pluginId = trim((string) ($row['mutation_plugin'] ?? ''));
-
-      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['mutation_config'])) {
-        continue;
-      }
-
-      $config = (array) ($row['mutation_config'] ?? []);
-      $plugin = $this->mutationManager->createInstance($pluginId, $config);
-
-      if ($plugin instanceof PluginFormInterface) {
-        $subform = &$form['field_mappings'][$delta]['mutation_config'];
-        $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
-        $subformState = SubformState::createForSubform($subform, $form, $form_state);
-        $plugin->validateConfigurationForm($subform, $subformState);
-      }
-    }
-  }
-
-  /**
-   * Runs each field mapping row's mutation plugin submit handler.
-   *
-   * Updates form state values with the processed plugin configuration so that
-   * applyFieldMappings() can persist them to the entity.
-   *
-   * @param array $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\PluginException
-   */
-  protected function submitMutationPluginForms(
-    array &$form,
-    FormStateInterface $form_state,
-  ): void {
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-
-    foreach ($rawMappings as $delta => $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-
-      $pluginId = trim((string) ($row['mutation_plugin'] ?? ''));
-
-      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['mutation_config'])) {
-        continue;
-      }
-
-      $config = (array) ($row['mutation_config'] ?? []);
-      $plugin = $this->mutationManager->createInstance($pluginId, $config);
-
-      if ($plugin instanceof FieldValueMutationInterface) {
-        $subform = &$form['field_mappings'][$delta]['mutation_config'];
-        $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
-        $subformState = SubformState::createForSubform($subform, $form, $form_state);
-        $plugin->submitConfigurationForm($subform, $subformState);
-
-        $form_state->setValue(
-          ['field_mappings', $delta, 'mutation_config'],
-          $plugin->getConfiguration(),
-        );
-      }
-    }
-  }
-
-  /**
-   * Validates each field mapping row's resolver plugin configuration form.
-   *
-   * @param array $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\PluginException
-   */
-  protected function validateResolverPluginForms(
-    array &$form,
-    FormStateInterface $form_state,
-  ): void {
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-
-    foreach ($rawMappings as $delta => $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-
-      $pluginId = trim((string) ($row['resolver'] ?? 'json_path'));
-
-      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['resolver_config'])) {
-        continue;
-      }
-
-      $config = (array) ($row['resolver_config'] ?? []);
-      $plugin = $this->resolverManager->createInstance($pluginId, $config);
-
-      if ($plugin instanceof PluginFormInterface) {
-        $subform = &$form['field_mappings'][$delta]['resolver_config'];
-        $subform['#parents'] = ['field_mappings', $delta, 'resolver_config'];
-        $subformState = SubformState::createForSubform($subform, $form, $form_state);
-        $plugin->validateConfigurationForm($subform, $subformState);
-      }
-    }
-  }
-
-  /**
-   * Runs each field mapping row's resolver plugin submit handler.
-   *
-   * Updates form state values with the processed plugin configuration so that
-   * applyFieldMappings() can persist them to the entity.
-   *
-   * @param array $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   *
-   * @throws \Drupal\Component\Plugin\Exception\PluginException
-   */
-  protected function submitResolverPluginForms(
-    array &$form,
-    FormStateInterface $form_state,
-  ): void {
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-
-    foreach ($rawMappings as $delta => $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-
-      $pluginId = trim((string) ($row['resolver'] ?? 'json_path'));
-
-      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['resolver_config'])) {
-        continue;
-      }
-
-      $config = (array) ($row['resolver_config'] ?? []);
-      $plugin = $this->resolverManager->createInstance($pluginId, $config);
-
-      if ($plugin instanceof ValueResolverInterface) {
-        $subform = &$form['field_mappings'][$delta]['resolver_config'];
-        $subform['#parents'] = ['field_mappings', $delta, 'resolver_config'];
-        $subformState = SubformState::createForSubform($subform, $form, $form_state);
-        $plugin->submitConfigurationForm($subform, $subformState);
-
-        $form_state->setValue(
-          ['field_mappings', $delta, 'resolver_config'],
-          $plugin->getConfiguration(),
-        );
-      }
-    }
-  }
-
-  /**
    * Resolves the verification config from form state or entity.
    *
    * @param \Drupal\Core\Form\FormStateInterface $form_state
@@ -856,378 +378,10 @@ class WebhookSourceTypeForm extends EntityForm {
     /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $entity */
     $entity = $this->entity;
 
+    $plugin = trim((string) ($form_state->getValue('verification_plugin') ?? ''));
+    $entity->set('verification_plugin', $plugin);
+
     $config = $form_state->getValue(['verification_config']) ?? [];
     $entity->set('verification_config', $config);
-  }
-
-  /**
-   * Returns only mappings with a non-empty entity_field value.
-   *
-   * @param array<int|string, mixed> $rawMappings
-   *   The raw form values for field_mappings.
-   *
-   * @return array<int, array<string, mixed>>
-   *   Indexed array of non-empty mapping rows.
-   */
-  protected function filterNonEmptyMappings(array $rawMappings): array {
-    $result = [];
-    foreach ($rawMappings as $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-      $entityField = trim((string) ($row['entity_field'] ?? ''));
-      if ($entityField !== '') {
-        $result[] = $row;
-      }
-    }
-
-    return $result;
-  }
-
-  /**
-   * Builds a single field mapping row element.
-   *
-   * @param int $delta
-   *   The row index.
-   * @param array<string, mixed> $defaults
-   *   Default values for the row.
-   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null $endpoint
-   *   The parent endpoint, if available.
-   *
-   * @return array<string, mixed>
-   *   The form element array for one row.
-   */
-  protected function buildFieldMappingRow(
-    int $delta,
-    array $defaults,
-    ?WebhookEndpointInterface $endpoint,
-  ): array {
-    $entityFieldElement = $this->buildEntityFieldElement($defaults, $endpoint);
-    $row = [
-      '#type' => 'fieldset',
-      '#title' => $this->t('Mapping @num', ['@num' => $delta + 1]),
-      'entity_field' => $entityFieldElement,
-      'is_identifier' => [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Use as identifier'),
-        '#default_value' => $defaults['is_identifier'] ?? FALSE,
-      ],
-      'resolver' => [
-        '#type' => 'select',
-        '#title' => $this->t('Value Resolver'),
-        '#options' => $this->resolverManager->getOptions(),
-        '#default_value' => $defaults['resolver'] ?? 'json_path',
-        '#ajax' => [
-          'callback' => [$this, 'ajaxUpdateResolverConfig'],
-          'wrapper' => 'resolver-config-wrapper-' . $delta,
-        ],
-      ],
-      'resolver_config' => [
-        '#type' => 'container',
-        '#prefix' => '<div id="resolver-config-wrapper-' . $delta . '">',
-        '#suffix' => '</div>',
-      ],
-
-      'mutation_plugin' => [
-        '#type' => 'select',
-        '#title' => $this->t('Mutation'),
-        '#options' => $this->mutationManager->getOptions(),
-        '#empty_option' => $this->t('- None -'),
-        '#default_value' => $defaults['mutation_plugin'] ?? '',
-        '#ajax' => [
-          'callback' => [$this, 'ajaxUpdateMutationConfig'],
-          'wrapper' => 'mutation-config-wrapper-' . $delta,
-        ],
-      ],
-      'mutation_config' => [
-        '#type' => 'container',
-        '#prefix' => '<div id="mutation-config-wrapper-' . $delta . '">',
-        '#suffix' => '</div>',
-      ],
-    ];
-
-    $hasValues = !empty(trim($defaults['entity_field'] ?? ''));
-
-    if ($hasValues) {
-      $row['remove'] = [
-        '#type' => 'submit',
-        '#value' => $this->t('Remove'),
-        '#name' => 'remove_mapping_' . $delta,
-        '#submit' => [[$this, 'removeFieldMappingRow']],
-        '#ajax' => [
-          'wrapper' => 'field-mappings-wrapper',
-          'callback' => [$this, 'fieldMappingsCallback'],
-        ],
-        '#limit_validation_errors' => [],
-      ];
-    }
-
-    return $row;
-  }
-
-  /**
-   * Appends the mutation plugin configuration subform to a mapping row.
-   *
-   * Resolves the selected mutation plugin from form state and — when one is
-   * selected — creates a plugin instance and merges its buildConfigurationForm
-   * output into the row's mutation_config container.
-   *
-   * Must be called after the row is added to $form['field_mappings'][$delta]
-   * so that the complete form array can be passed to SubformState.
-   *
-   * @param array<string, mixed> $row
-   *   The field mapping row element, modified in place.
-   * @param array $form
-   *   The complete form array, used to construct SubformState correctly.
-   * @param int $delta
-   *   The row index.
-   * @param array<string, mixed> $defaults
-   *   Default values for this row.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function buildMutationConfigSubform(
-    array &$row,
-    array $form,
-    int $delta,
-    array $defaults,
-    FormStateInterface $form_state,
-  ): void {
-    $defaultPluginId = (string) ($defaults['mutation_plugin'] ?? '');
-    $selectedMutationPlugin = $this->resolveSelectedMutationPlugin($delta, $form_state, $defaultPluginId);
-
-    if ($selectedMutationPlugin === NULL || $selectedMutationPlugin === '') {
-      return;
-    }
-
-    $existingMutationConfig = (array) ($defaults['mutation_config'] ?? []);
-    $plugin = $this->mutationManager->createInstance($selectedMutationPlugin, $existingMutationConfig);
-
-    if (!($plugin instanceof PluginFormInterface)) {
-      return;
-    }
-
-    $subform = &$row['mutation_config'];
-    $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
-    $subformState = SubformState::createForSubform($subform, $form, $form_state);
-    $row['mutation_config'] += $plugin->buildConfigurationForm($subform, $subformState);
-  }
-
-  /**
-   * Appends the resolver plugin configuration subform to a mapping row.
-   *
-   * Resolves the selected resolver plugin from form state and — when one is
-   * selected — creates a plugin instance and merges its buildConfigurationForm
-   * output into the row's resolver_config container.
-   *
-   * @param array<string, mixed> $row
-   *   The field mapping row element, modified in place.
-   * @param array $form
-   *   The complete form array, used to construct SubformState correctly.
-   * @param int $delta
-   *   The row index.
-   * @param array<string, mixed> $defaults
-   *   Default values for this row.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   */
-  protected function buildResolverConfigSubform(
-    array &$row,
-    array $form,
-    int $delta,
-    array $defaults,
-    FormStateInterface $form_state,
-  ): void {
-    $defaultPluginId = (string) ($defaults['resolver'] ?? 'json_path');
-    $selectedResolver = $this->resolveSelectedResolverPlugin($delta, $form_state, $defaultPluginId);
-
-    if ($selectedResolver === NULL || $selectedResolver === '') {
-      return;
-    }
-
-    $existingConfig = (array) ($defaults['resolver_config'] ?? []);
-    $plugin = $this->resolverManager->createInstance($selectedResolver, $existingConfig);
-
-    if (!($plugin instanceof PluginFormInterface)) {
-      return;
-    }
-
-    $subform = &$row['resolver_config'];
-    $subform['#parents'] = ['field_mappings', $delta, 'resolver_config'];
-    $subformState = SubformState::createForSubform($subform, $form, $form_state);
-    $row['resolver_config'] += $plugin->buildConfigurationForm($subform, $subformState);
-  }
-
-  /**
-   * Resolves the selected resolver plugin ID for a given mapping row.
-   *
-   * @param int $delta
-   *   The row index.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The current form state.
-   * @param string $default
-   *   The fallback plugin ID, typically from entity data.
-   *
-   * @return string|null
-   *   The plugin ID, or NULL if no plugin is selected.
-   */
-  protected function resolveSelectedResolverPlugin(
-    int $delta,
-    FormStateInterface $form_state,
-    string $default = 'json_path',
-  ): ?string {
-    return $this->getFormStateValue(
-      ['field_mappings', $delta, 'resolver'],
-      $form_state,
-      $default,
-    );
-  }
-
-  /**
-   * Builds the entity_field form element, using a select when endpoint is
-   * available.
-   *
-   * @param array<string, mixed> $defaults
-   *   Default values for this row.
-   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null $endpoint
-   *   The parent endpoint, if available.
-   *
-   * @return array<string, mixed>
-   *   The entity_field form element.
-   */
-  protected function buildEntityFieldElement(array $defaults, ?WebhookEndpointInterface $endpoint): array {
-    $defaultValue = $defaults['entity_field'] ?? '';
-
-    return [
-      '#type' => 'select',
-      '#title' => $this->t('Entity Field'),
-      '#options' => $this->getEntityFieldOptions($endpoint),
-      '#default_value' => $defaultValue,
-      '#empty_option' => $this->t('- Select -'),
-      '#empty_value' => '',
-      '#required' => FALSE,
-    ];
-  }
-
-  /**
-   * Returns an options array of field names to labels for the endpoint's
-   * entity type/bundle.
-   *
-   * Returns an empty array when no endpoint is provided, resulting in an empty
-   * select element.
-   *
-   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null $endpoint
-   *   The webhook endpoint, or NULL if none is available.
-   *
-   * @return array<string, string>
-   *   Keyed by field name, valued by field label string.
-   */
-  protected function getEntityFieldOptions(
-    ?WebhookEndpointInterface $endpoint,
-  ): array {
-    if ($endpoint === NULL) {
-      return [];
-    }
-
-    $bundle = $endpoint->getTargetEntityBundle();
-    $entityTypeId = $endpoint->getTargetEntityTypeId();
-
-    if ($bundle === '') {
-      $bundle = $entityTypeId;
-    }
-    $options = [];
-    $fieldDefinitions = $this->entityFieldManager
-      ->getFieldDefinitions($entityTypeId, $bundle);
-
-    foreach ($fieldDefinitions as $fieldName => $definition) {
-      $options[$fieldName] = (string) $definition->getLabel();
-    }
-    asort($options);
-
-    return $options;
-  }
-
-  /**
-   * Resolves default values for a field mapping row considering form rebuilds.
-   *
-   * During AJAX rebuilds, user input must be preferred over stored entity data
-   * so that in-progress edits are not lost.
-   *
-   * @param int $delta
-   *   The row index.
-   * @param array<int, array<string, mixed>> $existingMappings
-   *   The entity's stored field mappings.
-   * @param array<int, array<string, mixed>>|null $inputMappings
-   *   Raw field mapping user input, or NULL if not an AJAX rebuild.
-   *
-   * @return array<string, mixed>
-   *   The resolved defaults for this row.
-   */
-  protected function resolveFieldMappingDefaults(
-    int $delta,
-    array $existingMappings,
-    ?array $inputMappings,
-  ): array {
-    if ($inputMappings !== NULL && isset($inputMappings[$delta])) {
-      return $inputMappings[$delta];
-    }
-
-    return $existingMappings[$delta] ?? [];
-  }
-
-  /**
-   * Parses the row delta from a remove button element name.
-   *
-   * The name format is 'remove_mapping_{delta}'.
-   *
-   * @param string $name
-   *   The triggering element name.
-   *
-   * @return int
-   *   The parsed delta.
-   */
-  protected function parseDeltaFromElementName(string $name): int {
-    $parts = explode('_', $name);
-
-    return (int) end($parts);
-  }
-
-  /**
-   * Applies cleaned field mappings from form state to the entity.
-   *
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   */
-  protected function applyFieldMappings(FormStateInterface $form_state): void {
-    /** @var \Drupal\entity_webhook\Entity\WebhookSourceType $entity */
-    $entity = $this->entity;
-
-    $rawMappings = $form_state->getValue('field_mappings') ?? [];
-    $cleanMappings = [];
-
-    foreach ($rawMappings as $row) {
-      if (!is_array($row)) {
-        continue;
-      }
-      $entityField = trim((string) ($row['entity_field'] ?? ''));
-
-      if ($entityField === '') {
-        continue;
-      }
-      $cleanMappings[] = [
-        'entity_field' => $entityField,
-        'is_identifier' => (bool) ($row['is_identifier'] ?? FALSE),
-        'mutation_plugin' => trim((string) ($row['mutation_plugin'] ?? '')),
-        'mutation_config' => (array) ($row['mutation_config'] ?? []),
-        'resolver' => trim((string) ($row['resolver'] ?? 'json_path')),
-        'resolver_config' => (array) ($row['resolver_config'] ?? []),
-      ];
-    }
-
-    $entity->set('field_mappings', $cleanMappings);
-    $entity->set(
-      'verification_plugin',
-      trim((string) ($form_state->getValue('verification_plugin') ?? '')),
-    );
   }
 }

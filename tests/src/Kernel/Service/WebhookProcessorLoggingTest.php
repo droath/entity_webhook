@@ -6,6 +6,7 @@ namespace Drupal\Tests\entity_webhook\Kernel\Service;
 
 use Drupal\Core\Logger\RfcLogLevel;
 use Drupal\entity_webhook\Entity\WebhookEndpoint;
+use Drupal\entity_webhook\Entity\WebhookFieldMapping;
 use Drupal\entity_webhook\Entity\WebhookSourceType;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\KernelTests\KernelTestBase;
@@ -65,22 +66,32 @@ class WebhookProcessorLoggingTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'log_source',
       'label' => 'Log Source',
-      'field_mappings' => [
-        [
-          'entity_field' => 'type',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.bundle'],
-        ],
-        [
-          'entity_field' => 'title',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'log_source.type',
+      'label' => 'Bundle',
+      'source_type' => 'log_source',
+      'entity_field' => 'type',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.bundle'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'log_source.title',
+      'label' => 'Title',
+      'source_type' => 'log_source',
+      'entity_field' => 'title',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ])->save();
 
     $this->logStore = new LogStore();
@@ -130,16 +141,20 @@ class WebhookProcessorLoggingTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'bad_source',
       'label' => 'Bad Source',
-      'field_mappings' => [
-        [
-          'entity_field' => 'nonexistent_field_xyz',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'bad_source.nonexistent_field_xyz',
+      'label' => 'Nonexistent Field',
+      'source_type' => 'bad_source',
+      'entity_field' => 'nonexistent_field_xyz',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ])->save();
 
     WebhookEndpoint::create([

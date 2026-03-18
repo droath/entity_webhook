@@ -37,7 +37,6 @@ class EndpointSourceTypeRemoveFormTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'shopify',
       'label' => 'Shopify',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();
@@ -45,7 +44,6 @@ class EndpointSourceTypeRemoveFormTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'woocommerce',
       'label' => 'WooCommerce',
-      'field_mappings' => [],
       'verification_plugin' => '',
       'verification_config' => [],
     ])->save();

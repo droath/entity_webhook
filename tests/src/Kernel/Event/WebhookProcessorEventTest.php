@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\entity_webhook\Kernel\Event;
 
 use Drupal\entity_webhook\Entity\WebhookEndpoint;
+use Drupal\entity_webhook\Entity\WebhookFieldMapping;
 use Drupal\entity_webhook\Entity\WebhookSourceType;
 use Drupal\entity_webhook\Event\EntityWebhookEvents;
 use Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent;
@@ -63,22 +64,32 @@ class WebhookProcessorEventTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'test_source',
       'label' => 'Test Source',
-      'field_mappings' => [
-        [
-          'entity_field' => 'type',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.bundle'],
-        ],
-        [
-          'entity_field' => 'title',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'test_source.type',
+      'label' => 'type',
+      'source_type' => 'test_source',
+      'entity_field' => 'type',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.bundle'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'test_source.title',
+      'label' => 'title',
+      'source_type' => 'test_source',
+      'entity_field' => 'title',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ])->save();
   }
 
@@ -202,22 +213,32 @@ class WebhookProcessorEventTest extends KernelTestBase {
     WebhookSourceType::create([
       'id' => 'source_with_id',
       'label' => 'Source With ID',
-      'field_mappings' => [
-        [
-          'entity_field' => 'nid',
-          'is_identifier' => TRUE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.id'],
-        ],
-        [
-          'entity_field' => 'title',
-          'is_identifier' => FALSE,
-          'resolver' => 'json_path',
-          'resolver_config' => ['path' => '$.name'],
-        ],
-      ],
       'verification_plugin' => '',
       'verification_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'source_with_id.nid',
+      'label' => 'nid',
+      'source_type' => 'source_with_id',
+      'entity_field' => 'nid',
+      'is_identifier' => TRUE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.id'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    WebhookFieldMapping::create([
+      'id' => 'source_with_id.title',
+      'label' => 'title',
+      'source_type' => 'source_with_id',
+      'entity_field' => 'title',
+      'is_identifier' => FALSE,
+      'resolver' => 'json_path',
+      'resolver_config' => ['path' => '$.name'],
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ])->save();
 
     WebhookEndpoint::create([

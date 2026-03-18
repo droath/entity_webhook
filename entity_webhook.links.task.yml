@@ -13,3 +13,14 @@ entity.webhook_endpoint.source_types:
   route_name: entity.webhook_endpoint.source_types
   base_route: entity.webhook_endpoint.edit_form
   weight: 10
+
+entity.webhook_source_type.edit_form:
+  title: 'Edit'
+  route_name: entity.webhook_source_type.edit_form
+  base_route: entity.webhook_source_type.edit_form
+
+entity.webhook_field_mapping.collection:
+  title: 'Manage field mappings'
+  route_name: entity.webhook_field_mapping.collection
+  base_route: entity.webhook_source_type.edit_form
+  weight: 10

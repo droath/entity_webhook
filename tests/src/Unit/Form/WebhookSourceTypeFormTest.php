@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\entity_webhook\Unit\Form;
 
-use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\Tests\UnitTestCase;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
-use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
-use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
@@ -25,34 +22,21 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
   /**
    * Creates a WebhookSourceTypeForm instance with mocked dependencies.
    *
-   * @param \Drupal\Core\Entity\EntityFieldManagerInterface|null $entityFieldManager
-   *   Optional entity field manager mock.
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface|null $verificationManager
    *   Optional verification manager mock.
-   * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface|null $mutationManager
-   *   Optional mutation manager mock.
    *
    * @return \Drupal\entity_webhook\Form\WebhookSourceTypeForm
    *   The form instance.
    */
   private function createForm(
-    ?EntityFieldManagerInterface $entityFieldManager = NULL,
     ?WebhookVerificationManagerInterface $verificationManager = NULL,
-    ?FieldValueMutationManagerInterface $mutationManager = NULL,
-    ?ValueResolverManagerInterface $resolverManager = NULL,
   ): WebhookSourceTypeForm {
     $routeMatch = $this->createMock(RouteMatchInterface::class);
-    $entityFieldManager ??= $this->createMock(EntityFieldManagerInterface::class);
     $verificationManager ??= $this->createMock(WebhookVerificationManagerInterface::class);
-    $mutationManager ??= $this->createMock(FieldValueMutationManagerInterface::class);
-    $resolverManager ??= $this->createMock(ValueResolverManagerInterface::class);
 
     $form = new WebhookSourceTypeForm(
       $routeMatch,
-      $entityFieldManager,
       $verificationManager,
-      $mutationManager,
-      $resolverManager,
     );
 
     $translation = $this->createMock(TranslationInterface::class);
@@ -63,176 +47,104 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
   }
 
   /**
-   * Tests isAjaxMappingOperation returns true for add_mapping trigger name.
+   * Tests that validateForm calls plugin configuration validation when plugin is selected.
    */
-  public function testIsAjaxMappingOperationReturnsTrueForAddMappingTrigger(): void {
-    $form = $this->createForm();
+  public function testValidateFormDelegatesPluginValidationWhenPluginSelected(): void {
+    $verificationManager = $this->createMock(WebhookVerificationManagerInterface::class);
+    $verificationManager->expects($this->never())->method('createInstance');
 
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'add_mapping']);
-
-    $result = $this->callProtectedMethod($form, 'isAjaxMappingOperation', [$formState]);
-
-    $this->assertTrue($result);
-  }
-
-  /**
-   * Tests isAjaxMappingOperation returns true for remove_mapping_N trigger names.
-   */
-  public function testIsAjaxMappingOperationReturnsTrueForRemoveMappingTrigger(): void {
-    $form = $this->createForm();
-
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'remove_mapping_2']);
-
-    $result = $this->callProtectedMethod($form, 'isAjaxMappingOperation', [$formState]);
-
-    $this->assertTrue($result);
-  }
-
-  /**
-   * Tests isAjaxMappingOperation returns false for standard form submit triggers.
-   */
-  public function testIsAjaxMappingOperationReturnsFalseForStandardSubmit(): void {
-    $form = $this->createForm();
-
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'op']);
-
-    $result = $this->callProtectedMethod($form, 'isAjaxMappingOperation', [$formState]);
-
-    $this->assertFalse($result);
-  }
-
-  /**
-   * Tests isAjaxMappingOperation returns false when triggering element has no name.
-   */
-  public function testIsAjaxMappingOperationReturnsFalseWhenNoTriggeringElementName(): void {
-    $form = $this->createForm();
-
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn([]);
-
-    $result = $this->callProtectedMethod($form, 'isAjaxMappingOperation', [$formState]);
-
-    $this->assertFalse($result);
-  }
-
-  /**
-   * Tests that validateForm skips identifier check for AJAX add mapping triggers.
-   */
-  public function testValidateFormSkipsIdentifierCheckForAjaxAddMapping(): void {
-    $form = $this->createForm();
+    $form = $this->createForm($verificationManager);
 
     $entity = $this->createMock(WebhookSourceTypeInterface::class);
     $entity->method('getVerificationPlugin')->willReturn('');
     $form->setEntity($entity);
 
     $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'add_mapping']);
-    $formState->expects($this->never())->method('setErrorByName');
-
-    $formArray = [];
-    $form->validateForm($formArray, $formState);
-  }
-
-  /**
-   * Tests that validateForm skips identifier check for AJAX remove mapping triggers.
-   */
-  public function testValidateFormSkipsIdentifierCheckForAjaxRemoveMapping(): void {
-    $form = $this->createForm();
-
-    $entity = $this->createMock(WebhookSourceTypeInterface::class);
-    $entity->method('getVerificationPlugin')->willReturn('');
-    $form->setEntity($entity);
-
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'remove_mapping_0']);
-    $formState->expects($this->never())->method('setErrorByName');
-
-    $formArray = [];
-    $form->validateForm($formArray, $formState);
-  }
-
-  /**
-   * Tests that validateForm sets an error when mappings exist but none are identifiers.
-   */
-  public function testValidateFormSetsErrorWhenMappingsExistButNoneAreIdentifiers(): void {
-    $nonEmptyMappings = [
-      0 => ['entity_field' => 'title', 'is_identifier' => '0'],
-    ];
-
-    $form = $this->createForm();
-
-    $entity = $this->createMock(WebhookSourceTypeInterface::class);
-    $entity->method('getVerificationPlugin')->willReturn('');
-    $form->setEntity($entity);
-
-    $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'op']);
     $formState->method('getUserInput')->willReturn([]);
     $formState->method('getValue')->willReturnMap([
-      ['field_mappings', NULL, $nonEmptyMappings],
       ['verification_plugin', NULL, ''],
     ]);
-    $formState->expects($this->once())
-      ->method('setErrorByName')
-      ->with('field_mappings', $this->anything());
 
     $formArray = [];
     $form->validateForm($formArray, $formState);
   }
 
   /**
-   * Tests that validateForm does not set error when at least one identifier is present.
+   * Tests that resolveSelectedVerificationPlugin returns entity value when no user input.
    */
-  public function testValidateFormDoesNotSetErrorWhenIdentifierPresent(): void {
-    $nonEmptyMappings = [
-      0 => ['entity_field' => 'title', 'is_identifier' => '1'],
-    ];
-
+  public function testResolveSelectedVerificationPluginReturnsEntityValueWhenNoUserInput(): void {
     $form = $this->createForm();
 
     $entity = $this->createMock(WebhookSourceTypeInterface::class);
-    $entity->method('getVerificationPlugin')->willReturn('');
+    $entity->method('getVerificationPlugin')->willReturn('hmac_verification');
     $form->setEntity($entity);
 
     $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'op']);
     $formState->method('getUserInput')->willReturn([]);
-    $formState->method('getValue')->willReturnMap([
-      ['field_mappings', NULL, $nonEmptyMappings],
-      ['verification_plugin', NULL, ''],
-    ]);
-    $formState->expects($this->never())->method('setErrorByName');
+    $formState->method('getValue')->willReturn(NULL);
 
-    $formArray = [];
-    $form->validateForm($formArray, $formState);
+    $result = $this->callProtectedMethod($form, 'resolveSelectedVerificationPlugin', [$formState]);
+
+    $this->assertSame('hmac_verification', $result);
   }
 
   /**
-   * Tests that validateForm does not set identifier error when no non-empty mappings exist.
+   * Tests that resolveSelectedVerificationPlugin prefers user input during AJAX rebuilds.
    */
-  public function testValidateFormSkipsIdentifierCheckWhenNoNonEmptyMappings(): void {
+  public function testResolveSelectedVerificationPluginPrefersUserInputDuringAjaxRebuild(): void {
     $form = $this->createForm();
 
     $entity = $this->createMock(WebhookSourceTypeInterface::class);
-    $entity->method('getVerificationPlugin')->willReturn('');
+    $entity->method('getVerificationPlugin')->willReturn('hmac_verification');
     $form->setEntity($entity);
 
     $formState = $this->createMock(FormStateInterface::class);
-    $formState->method('getTriggeringElement')->willReturn(['#name' => 'op']);
-    $formState->method('getUserInput')->willReturn([]);
-    $formState->method('getValue')->willReturnMap([
-      ['field_mappings', NULL, [
-        0 => ['entity_field' => '', 'is_identifier' => '0'],
-      ]],
-      ['verification_plugin', NULL, ''],
-    ]);
-    $formState->expects($this->never())->method('setErrorByName');
+    $formState->method('getUserInput')->willReturn(['verification_plugin' => 'api_key_verification']);
+    $formState->method('getValue')->willReturn(NULL);
 
-    $formArray = [];
-    $form->validateForm($formArray, $formState);
+    $result = $this->callProtectedMethod($form, 'resolveSelectedVerificationPlugin', [$formState]);
+
+    $this->assertSame('api_key_verification', $result);
+  }
+
+  /**
+   * Tests that resolveVerificationConfig returns form state value when non-empty.
+   */
+  public function testResolveVerificationConfigReturnsFormStateValueWhenNonEmpty(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getVerificationConfig')->willReturn(['secret' => 'entity_secret']);
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getValue')->willReturnMap([
+      [['verification_config'], NULL, ['secret' => 'form_secret']],
+    ]);
+
+    $result = $this->callProtectedMethod($form, 'resolveVerificationConfig', [$formState]);
+
+    $this->assertSame(['secret' => 'form_secret'], $result);
+  }
+
+  /**
+   * Tests that resolveVerificationConfig falls back to entity config when form value is empty.
+   */
+  public function testResolveVerificationConfigFallsBackToEntityConfigWhenFormEmpty(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getVerificationConfig')->willReturn(['secret' => 'entity_secret']);
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getValue')->willReturnMap([
+      [['verification_config'], NULL, []],
+    ]);
+
+    $result = $this->callProtectedMethod($form, 'resolveVerificationConfig', [$formState]);
+
+    $this->assertSame(['secret' => 'entity_secret'], $result);
   }
 
   /**
