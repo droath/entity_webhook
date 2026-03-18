@@ -15,7 +15,9 @@ use Drupal\entity_webhook\Traits\AjaxFormStateTrait;
 use Drupal\entity_webhook\Traits\ConfigEntityFormTrait;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationInterface;
+use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
@@ -42,6 +44,14 @@ class WebhookSourceTypeForm extends EntityForm {
   protected WebhookVerificationManagerInterface $verificationManager;
 
   /**
+   * The field value mutation plugin manager.
+   *
+   * Not readonly because DependencySerializationTrait::__wakeup() must
+   * re-inject this property after the form is unserialized during AJAX.
+   */
+  protected FieldValueMutationManagerInterface $mutationManager;
+
+  /**
    * Constructs a WebhookSourceTypeForm.
    *
    * @param \Drupal\Core\Routing\RouteMatchInterface $routeMatch
@@ -50,15 +60,19 @@ class WebhookSourceTypeForm extends EntityForm {
    *   The entity field manager.
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface $verificationManager
    *   The webhook verification plugin manager.
+   * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface $mutationManager
+   *   The field value mutation plugin manager.
    */
   public function __construct(
     RouteMatchInterface $routeMatch,
     EntityFieldManagerInterface $entityFieldManager,
     WebhookVerificationManagerInterface $verificationManager,
+    FieldValueMutationManagerInterface $mutationManager,
   ) {
     $this->routeMatch = $routeMatch;
     $this->entityFieldManager = $entityFieldManager;
     $this->verificationManager = $verificationManager;
+    $this->mutationManager = $mutationManager;
   }
 
   /**
@@ -69,6 +83,7 @@ class WebhookSourceTypeForm extends EntityForm {
       $container->get('current_route_match'),
       $container->get('entity_field.manager'),
       $container->get('plugin.manager.webhook_verification'),
+      $container->get('plugin.manager.field_value_mutation'),
     );
   }
 
@@ -108,6 +123,13 @@ class WebhookSourceTypeForm extends EntityForm {
         $delta,
         $defaults,
         $endpoint,
+      );
+      $this->buildMutationConfigSubform(
+        $form['field_mappings'][$delta],
+        $form,
+        $delta,
+        $defaults,
+        $form_state,
       );
     }
 
@@ -203,6 +225,24 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
+   * AJAX callback that returns the mutation_config container for a mapping row.
+   *
+   * @param array<string, mixed> $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array<string, mixed>
+   *   The mutation config container element for the triggering row.
+   */
+  public function ajaxUpdateMutationConfig(array &$form, FormStateInterface $form_state): array {
+    $trigger = $form_state->getTriggeringElement();
+    $delta = $trigger['#parents'][1];
+
+    return $form['field_mappings'][$delta]['mutation_config'];
+  }
+
+  /**
    * Submit handler for adding a new field mapping row.
    *
    * @param array<string, mixed> $form
@@ -228,6 +268,7 @@ class WebhookSourceTypeForm extends EntityForm {
 
     $this->validateIdentifierRequirement($form_state);
     $this->validatePluginConfigurationForm($form, $form_state);
+    $this->validateMutationPluginForms($form, $form_state);
   }
 
   /**
@@ -310,6 +351,7 @@ class WebhookSourceTypeForm extends EntityForm {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     $this->submitPluginConfigurationForm($form, $form_state);
+    $this->submitMutationPluginForms($form, $form_state);
 
     parent::submitForm($form, $form_state);
   }
@@ -398,6 +440,35 @@ class WebhookSourceTypeForm extends EntityForm {
       'verification_plugin',
       $form_state,
       $entity->getVerificationPlugin(),
+    );
+  }
+
+  /**
+   * Resolves the selected mutation plugin ID for a given mapping row.
+   *
+   * Checks user input first (for AJAX rebuilds) then form state values. Falls
+   * back to the stored default from the entity or existing user input when
+   * neither source has the key yet (initial page load).
+   *
+   * @param int $delta
+   *   The row index.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   * @param string $default
+   *   The fallback plugin ID, typically from entity data.
+   *
+   * @return string|null
+   *   The plugin ID, or NULL if no plugin is selected.
+   */
+  protected function resolveSelectedMutationPlugin(
+    int $delta,
+    FormStateInterface $form_state,
+    string $default = '',
+  ): ?string {
+    return $this->getFormStateValue(
+      ['field_mappings', $delta, 'mutation_plugin'],
+      $form_state,
+      $default,
     );
   }
 
@@ -537,6 +608,92 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
+   * Validates each field mapping row's mutation plugin configuration form.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\PluginException
+   */
+  protected function validateMutationPluginForms(
+    array &$form,
+    FormStateInterface $form_state,
+  ): void {
+    $rawMappings = $form_state->getValue('field_mappings') ?? [];
+
+    foreach ($rawMappings as $delta => $row) {
+      if (!is_array($row)) {
+        continue;
+      }
+
+      $pluginId = trim((string) ($row['mutation_plugin'] ?? ''));
+
+      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['mutation_config'])) {
+        continue;
+      }
+
+      $config = (array) ($row['mutation_config'] ?? []);
+      $plugin = $this->mutationManager->createInstance($pluginId, $config);
+
+      if ($plugin instanceof PluginFormInterface) {
+        $subform = &$form['field_mappings'][$delta]['mutation_config'];
+        $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
+        $subformState = SubformState::createForSubform($subform, $form, $form_state);
+        $plugin->validateConfigurationForm($subform, $subformState);
+      }
+    }
+  }
+
+  /**
+   * Runs each field mapping row's mutation plugin submit handler.
+   *
+   * Updates form state values with the processed plugin configuration so that
+   * applyFieldMappings() can persist them to the entity.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\PluginException
+   */
+  protected function submitMutationPluginForms(
+    array &$form,
+    FormStateInterface $form_state,
+  ): void {
+    $rawMappings = $form_state->getValue('field_mappings') ?? [];
+
+    foreach ($rawMappings as $delta => $row) {
+      if (!is_array($row)) {
+        continue;
+      }
+
+      $pluginId = trim((string) ($row['mutation_plugin'] ?? ''));
+
+      if ($pluginId === '' || !isset($form['field_mappings'][$delta]['mutation_config'])) {
+        continue;
+      }
+
+      $config = (array) ($row['mutation_config'] ?? []);
+      $plugin = $this->mutationManager->createInstance($pluginId, $config);
+
+      if ($plugin instanceof FieldValueMutationInterface) {
+        $subform = &$form['field_mappings'][$delta]['mutation_config'];
+        $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
+        $subformState = SubformState::createForSubform($subform, $form, $form_state);
+        $plugin->submitConfigurationForm($subform, $subformState);
+
+        $form_state->setValue(
+          ['field_mappings', $delta, 'mutation_config'],
+          $plugin->getConfiguration(),
+        );
+      }
+    }
+  }
+
+  /**
    * Resolves the verification config from form state or entity.
    *
    * @param \Drupal\Core\Form\FormStateInterface $form_state
@@ -635,6 +792,22 @@ class WebhookSourceTypeForm extends EntityForm {
         '#title' => $this->t('Use as identifier'),
         '#default_value' => $defaults['is_identifier'] ?? FALSE,
       ],
+      'mutation_plugin' => [
+        '#type' => 'select',
+        '#title' => $this->t('Mutation'),
+        '#options' => $this->mutationManager->getOptions(),
+        '#empty_option' => $this->t('- None -'),
+        '#default_value' => $defaults['mutation_plugin'] ?? '',
+        '#ajax' => [
+          'callback' => [$this, 'ajaxUpdateMutationConfig'],
+          'wrapper' => 'mutation-config-wrapper-' . $delta,
+        ],
+      ],
+      'mutation_config' => [
+        '#type' => 'container',
+        '#prefix' => '<div id="mutation-config-wrapper-' . $delta . '">',
+        '#suffix' => '</div>',
+      ],
     ];
 
     $hasValues = !empty(trim($defaults['entity_field'] ?? ''))
@@ -655,6 +828,54 @@ class WebhookSourceTypeForm extends EntityForm {
     }
 
     return $row;
+  }
+
+  /**
+   * Appends the mutation plugin configuration subform to a mapping row.
+   *
+   * Resolves the selected mutation plugin from form state and — when one is
+   * selected — creates a plugin instance and merges its buildConfigurationForm
+   * output into the row's mutation_config container.
+   *
+   * Must be called after the row is added to $form['field_mappings'][$delta]
+   * so that the complete form array can be passed to SubformState.
+   *
+   * @param array<string, mixed> $row
+   *   The field mapping row element, modified in place.
+   * @param array $form
+   *   The complete form array, used to construct SubformState correctly.
+   * @param int $delta
+   *   The row index.
+   * @param array<string, mixed> $defaults
+   *   Default values for this row.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   */
+  protected function buildMutationConfigSubform(
+    array &$row,
+    array $form,
+    int $delta,
+    array $defaults,
+    FormStateInterface $form_state,
+  ): void {
+    $defaultPluginId = (string) ($defaults['mutation_plugin'] ?? '');
+    $selectedMutationPlugin = $this->resolveSelectedMutationPlugin($delta, $form_state, $defaultPluginId);
+
+    if ($selectedMutationPlugin === NULL || $selectedMutationPlugin === '') {
+      return;
+    }
+
+    $existingMutationConfig = (array) ($defaults['mutation_config'] ?? []);
+    $plugin = $this->mutationManager->createInstance($selectedMutationPlugin, $existingMutationConfig);
+
+    if (!($plugin instanceof PluginFormInterface)) {
+      return;
+    }
+
+    $subform = &$row['mutation_config'];
+    $subform['#parents'] = ['field_mappings', $delta, 'mutation_config'];
+    $subformState = SubformState::createForSubform($subform, $form, $form_state);
+    $row['mutation_config'] += $plugin->buildConfigurationForm($subform, $subformState);
   }
 
   /**
@@ -793,6 +1014,8 @@ class WebhookSourceTypeForm extends EntityForm {
         'entity_field' => $entityField,
         'json_path' => $jsonPath,
         'is_identifier' => (bool) ($row['is_identifier'] ?? FALSE),
+        'mutation_plugin' => trim((string) ($row['mutation_plugin'] ?? '')),
+        'mutation_config' => (array) ($row['mutation_config'] ?? []),
       ];
     }
 

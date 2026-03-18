@@ -27,6 +27,15 @@ entity_webhook.webhook_source_type.*:
           is_identifier:
             type: boolean
             label: 'Is Identifier'
+          mutation_plugin:
+            type: string
+            label: 'Mutation Plugin ID'
+          mutation_config:
+            type: sequence
+            label: 'Mutation Plugin Configuration'
+            sequence:
+              type: ignore
+              label: 'Configuration value'
     verification_plugin:
       type: string
       label: 'Verification Plugin ID'

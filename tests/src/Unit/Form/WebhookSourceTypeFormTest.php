@@ -11,6 +11,7 @@ use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\Tests\UnitTestCase;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
+use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
@@ -27,6 +28,8 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
    *   Optional entity field manager mock.
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface|null $verificationManager
    *   Optional verification manager mock.
+   * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface|null $mutationManager
+   *   Optional mutation manager mock.
    *
    * @return \Drupal\entity_webhook\Form\WebhookSourceTypeForm
    *   The form instance.
@@ -34,15 +37,18 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
   private function createForm(
     ?EntityFieldManagerInterface $entityFieldManager = NULL,
     ?WebhookVerificationManagerInterface $verificationManager = NULL,
+    ?FieldValueMutationManagerInterface $mutationManager = NULL,
   ): WebhookSourceTypeForm {
     $routeMatch = $this->createMock(RouteMatchInterface::class);
     $entityFieldManager ??= $this->createMock(EntityFieldManagerInterface::class);
     $verificationManager ??= $this->createMock(WebhookVerificationManagerInterface::class);
+    $mutationManager ??= $this->createMock(FieldValueMutationManagerInterface::class);
 
     $form = new WebhookSourceTypeForm(
       $routeMatch,
       $entityFieldManager,
       $verificationManager,
+      $mutationManager,
     );
 
     $translation = $this->createMock(TranslationInterface::class);

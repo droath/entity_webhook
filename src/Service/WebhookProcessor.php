@@ -6,6 +6,7 @@ namespace Drupal\entity_webhook\Service;
 
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\entity_webhook\Entity\FieldMapping;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\entity_webhook\Event\EntityWebhookEvents;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
@@ -14,6 +15,7 @@ use Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
+use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 
 /**
  * Orchestrates the full entity upsert pipeline for a single queue item.
@@ -37,6 +39,8 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The logger channel for entity_webhook.
    * @param \Symfony\Contracts\EventDispatcher\EventDispatcherInterface $eventDispatcher
    *   The event dispatcher.
+   * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface $mutationManager
+   *   The field value mutation plugin manager.
    */
   public function __construct(
     protected readonly WebhookRequestValidatorInterface $validator,
@@ -44,6 +48,7 @@ class WebhookProcessor implements WebhookProcessorInterface {
     protected readonly EntityUpsertServiceInterface $entityUpsert,
     protected readonly LoggerChannelInterface $logger,
     protected readonly EventDispatcherInterface $eventDispatcher,
+    protected readonly FieldValueMutationManagerInterface $mutationManager,
   ) {
   }
 
@@ -282,10 +287,53 @@ class WebhookProcessor implements WebhookProcessorInterface {
       );
 
       if ($extracted !== NULL) {
+        $extracted = $this->applyMutation($mapping, $extracted);
         $values[$mapping->entityField] = $extracted;
       }
     }
 
     return $values;
+  }
+
+  /**
+   * Applies a mutation plugin to the extracted value, if one is configured.
+   *
+   * Returns the original value unchanged when no mutation plugin is set.
+   * On plugin instantiation or mutation failure the error is logged and the
+   * original value is returned so downstream processing is not disrupted.
+   *
+   * @param \Drupal\entity_webhook\Entity\FieldMapping $mapping
+   *   The field mapping that may carry a mutation plugin ID and config.
+   * @param mixed $value
+   *   The extracted field value to potentially transform.
+   *
+   * @return mixed
+   *   The mutated value, or the original value when no mutation is configured
+   *   or when mutation fails.
+   */
+  private function applyMutation(FieldMapping $mapping, mixed $value): mixed {
+    if ($mapping->mutationPlugin === '') {
+      return $value;
+    }
+
+    try {
+      $plugin = $this->mutationManager->createInstance(
+        $mapping->mutationPlugin,
+        $mapping->mutationConfig,
+      );
+
+      return $plugin->mutate($value);
+    } catch (\Throwable $e) {
+      $this->logger->error(
+        'Field value mutation plugin @plugin failed for field @field: @message',
+        [
+          '@plugin' => $mapping->mutationPlugin,
+          '@field' => $mapping->entityField,
+          '@message' => $e->getMessage(),
+        ],
+      );
+
+      return $value;
+    }
   }
 }

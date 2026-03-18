@@ -94,6 +94,8 @@ class FieldMappingTest extends UnitTestCase {
       'entity_field' => 'title',
       'json_path' => '$.name',
       'is_identifier' => FALSE,
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ];
 
     $this->assertSame($expected, $mapping->toArray());
@@ -110,11 +112,51 @@ class FieldMappingTest extends UnitTestCase {
       'entity_field' => 'field_sku',
       'json_path' => '$.product.sku',
       'is_identifier' => TRUE,
+      'mutation_plugin' => '',
+      'mutation_config' => [],
     ];
 
     $result = FieldMapping::fromArray($original)->toArray();
 
     $this->assertSame($original, $result);
+  }
+
+  /**
+   * Tests that mutation fields default to empty values when absent from array.
+   *
+   * @covers ::fromArray
+   */
+  public function testFromArrayDefaultsToEmptyMutationValues(): void {
+    $mapping = FieldMapping::fromArray([
+      'entity_field' => 'title',
+      'json_path' => '$.name',
+    ]);
+
+    $this->assertSame('', $mapping->mutationPlugin);
+    $this->assertSame([], $mapping->mutationConfig);
+  }
+
+  /**
+   * Tests that mutation plugin and config are stored and returned correctly.
+   *
+   * @covers ::__construct
+   * @covers ::fromArray
+   * @covers ::toArray
+   */
+  public function testMutationPluginRoundTripPreservesValues(): void {
+    $original = [
+      'entity_field' => 'field_price',
+      'json_path' => '$.price',
+      'is_identifier' => FALSE,
+      'mutation_plugin' => 'currency_convert',
+      'mutation_config' => ['from' => 'USD', 'to' => 'EUR'],
+    ];
+
+    $mapping = FieldMapping::fromArray($original);
+
+    $this->assertSame('currency_convert', $mapping->mutationPlugin);
+    $this->assertSame(['from' => 'USD', 'to' => 'EUR'], $mapping->mutationConfig);
+    $this->assertSame($original, $mapping->toArray());
   }
 
 }

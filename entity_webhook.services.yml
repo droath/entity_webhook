@@ -40,6 +40,7 @@ services:
       - '@entity_webhook.entity_upsert'
       - '@logger.channel.entity_webhook'
       - '@event_dispatcher'
+      - '@plugin.manager.field_value_mutation'
 
   entity_webhook.verification_chain:
     class: Drupal\entity_webhook\Service\VerificationChain
@@ -48,3 +49,7 @@ services:
     class: Drupal\entity_webhook\Service\VerificationConfigTransformer
     arguments:
       - '@plugin.manager.webhook_verification'
+
+  plugin.manager.field_value_mutation:
+    class: Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManager
+    parent: default_plugin_manager
