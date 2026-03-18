@@ -115,6 +115,14 @@ final class EndpointSourceTypesController extends ControllerBase {
               ]),
               'weight' => 0,
             ],
+            'manage_field_mappings' => [
+              'title' => $this->t('Manage field mappings'),
+              'url' => Url::fromRoute('entity.webhook_field_mapping.collection', [
+                'webhook_endpoint' => $endpoint->id(),
+                'webhook_source_type' => $sourceTypeId,
+              ]),
+              'weight' => 5,
+            ],
             'delete' => [
               'title' => $this->t('Delete'),
               'url' => Url::fromRoute('entity.webhook_endpoint.source_types.remove', [
