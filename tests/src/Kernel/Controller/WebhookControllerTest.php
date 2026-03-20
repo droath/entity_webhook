@@ -150,7 +150,7 @@ class WebhookControllerTest extends KernelTestBase {
       '/webhook/secured_endpoint/secured_source',
       json_encode(['event' => 'created']),
     );
-    $request->headers->set('X-Hub-Signature-256', 'sha256=wrongsignature');
+    $request->headers->set('X-Hub-Signature-256', 'wrongsignature');
 
     $response = $this->processRequest($request);
 
@@ -163,7 +163,7 @@ class WebhookControllerTest extends KernelTestBase {
   public function testPassedVerificationReturns200(): void {
     $secret = 'correct-secret';
     $body = json_encode(['event' => 'created']);
-    $signature = 'sha256=' . hash_hmac('sha256', $body, $secret);
+    $signature = hash_hmac('sha256', $body, $secret);
 
     WebhookSourceType::create([
       'id' => 'hmac_source',

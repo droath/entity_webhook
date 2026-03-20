@@ -54,18 +54,25 @@ class HmacVerificationTest extends UnitTestCase {
   }
 
   /**
-   * Computes the expected sha256 HMAC signature for the given body and secret.
+   * Computes the expected HMAC-SHA256 signature for the given body and secret.
    *
    * @param string $body
    *   The request body.
    * @param string $secret
    *   The shared secret.
+   * @param bool $base64
+   *   When TRUE, returns a base64-encoded binary HMAC. When FALSE (default),
+   *   returns the lowercase hex string.
    *
    * @return string
-   *   The "sha256=" prefixed hex-encoded HMAC signature.
+   *   The computed HMAC signature.
    */
-  private function computeSignature(string $body, string $secret): string {
-    return 'sha256=' . hash_hmac('sha256', $body, $secret);
+  private function computeSignature(string $body, string $secret, bool $base64 = FALSE): string {
+    if ($base64) {
+      return base64_encode(hash_hmac('sha256', $body, $secret, TRUE));
+    }
+
+    return hash_hmac('sha256', $body, $secret);
   }
 
   /**
@@ -156,6 +163,50 @@ class HmacVerificationTest extends UnitTestCase {
     $request = $this->buildRequest($body, 'X-Shopify-Hmac-SHA256', $signature);
 
     $this->assertTrue($plugin->verify($request));
+  }
+
+  /**
+   * Tests that a base64-encoded signature passes verification when enabled.
+   *
+   * @covers ::verify
+   */
+  public function testBase64EncodedSignaturePassesVerification(): void {
+    $secret = 'my-secret-key';
+    $body = '{"event":"created"}';
+    $signature = $this->computeSignature($body, $secret, TRUE);
+
+    $plugin = $this->createPlugin([
+      'secret' => $secret,
+      'header' => 'X-Webhook-Signature',
+      'base64' => TRUE,
+    ]);
+    $request = $this->buildRequest($body, 'X-Webhook-Signature', $signature);
+
+    $this->assertTrue($plugin->verify($request));
+  }
+
+  /**
+   * Tests that hex encoding is used by default when base64 is disabled.
+   *
+   * @covers ::verify
+   */
+  public function testBase64DisabledUsesHexEncoding(): void {
+    $secret = 'my-secret-key';
+    $body = '{"event":"created"}';
+    $hexSignature = $this->computeSignature($body, $secret, FALSE);
+    $base64Signature = $this->computeSignature($body, $secret, TRUE);
+
+    $plugin = $this->createPlugin([
+      'secret' => $secret,
+      'header' => 'X-Webhook-Signature',
+      'base64' => FALSE,
+    ]);
+
+    $requestWithHex = $this->buildRequest($body, 'X-Webhook-Signature', $hexSignature);
+    $requestWithBase64 = $this->buildRequest($body, 'X-Webhook-Signature', $base64Signature);
+
+    $this->assertTrue($plugin->verify($requestWithHex));
+    $this->assertFalse($plugin->verify($requestWithBase64));
   }
 
 }
