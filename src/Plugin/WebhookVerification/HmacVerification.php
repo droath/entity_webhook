@@ -31,7 +31,6 @@ use Drupal\entity_webhook\Attribute\WebhookVerification;
   description: new TranslatableMarkup('Verifies requests using an HMAC-SHA256 signature in a configurable header.'),
 )]
 class HmacVerification extends WebhookVerificationBase {
-
   /**
    * {@inheritdoc}
    */
@@ -123,5 +122,4 @@ class HmacVerification extends WebhookVerificationBase {
 
     return hash_hmac('sha256', $body, $secret);
   }
-
 }

@@ -1,0 +1,17 @@
+entity.outbound_endpoint.add_form:
+  route_name: entity.outbound_endpoint.add_form
+  title: 'Add Outbound Endpoint'
+  appears_on:
+    - entity.outbound_endpoint.collection
+
+entity.outbound_subscription.add_form:
+  route_name: entity.outbound_subscription.add_form
+  title: 'Add Subscription'
+  appears_on:
+    - entity.outbound_subscription.collection
+
+entity.outbound_field_mapping.add_form:
+  route_name: entity.outbound_field_mapping.add_form
+  title: 'Add Field Mapping'
+  appears_on:
+    - entity.outbound_field_mapping.collection

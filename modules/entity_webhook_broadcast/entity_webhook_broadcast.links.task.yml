@@ -1,0 +1,33 @@
+entity_webhook_broadcast.admin_tab:
+  title: 'Outbound Broadcasts'
+  route_name: entity.outbound_endpoint.collection
+  base_route: entity.webhook_endpoint.collection
+  weight: 5
+
+entity.outbound_endpoint.edit_form:
+  title: 'Edit'
+  route_name: entity.outbound_endpoint.edit_form
+  base_route: entity.outbound_endpoint.edit_form
+
+entity.outbound_subscription.collection:
+  title: 'Subscriptions'
+  route_name: entity.outbound_subscription.collection
+  base_route: entity.outbound_endpoint.edit_form
+  weight: 10
+
+entity.outbound_subscription.edit_form:
+  title: 'Edit'
+  route_name: entity.outbound_subscription.edit_form
+  base_route: entity.outbound_subscription.edit_form
+
+entity.outbound_field_mapping.collection:
+  title: 'Field Mappings'
+  route_name: entity.outbound_field_mapping.collection
+  base_route: entity.outbound_subscription.edit_form
+  weight: 10
+
+entity_webhook_broadcast.subscription_delivery_logs:
+  title: 'Delivery Logs'
+  route_name: entity_webhook_broadcast.subscription_delivery_logs
+  base_route: entity.outbound_subscription.edit_form
+  weight: 15

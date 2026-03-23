@@ -1,0 +1,6 @@
+entity_webhook_broadcast.admin:
+  title: 'Outbound Broadcasts'
+  description: 'Configure outbound webhook endpoints, subscriptions, and field mappings.'
+  route_name: entity.outbound_endpoint.collection
+  parent: entity_webhook.admin
+  weight: 5

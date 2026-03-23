@@ -1,0 +1,180 @@
+entity.outbound_endpoint.collection:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints'
+  defaults:
+    _entity_list: 'outbound_endpoint'
+    _title: 'Outbound Endpoints'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+
+entity.outbound_endpoint.add_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/add'
+  defaults:
+    _entity_form: 'outbound_endpoint.add'
+    _title: 'Add Outbound Endpoint'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+
+entity.outbound_endpoint.edit_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/edit'
+  defaults:
+    _entity_form: 'outbound_endpoint.edit'
+    _title: 'Edit Outbound Endpoint'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+
+entity.outbound_endpoint.delete_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/delete'
+  defaults:
+    _entity_form: 'outbound_endpoint.delete'
+    _title: 'Delete Outbound Endpoint'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+
+entity.outbound_subscription.collection:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions'
+  defaults:
+    _entity_list: 'outbound_subscription'
+    _title: 'Outbound Subscriptions'
+    _title_callback: '\Drupal\entity_webhook_broadcast\Controller\SubscriptionListController::getTitle'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+
+entity.outbound_subscription.add_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/add'
+  defaults:
+    _entity_form: 'outbound_subscription.add'
+    _title: 'Add Outbound Subscription'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+
+entity.outbound_subscription.edit_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/edit'
+  defaults:
+    _entity_form: 'outbound_subscription.edit'
+    _title: 'Edit Outbound Subscription'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+
+entity.outbound_subscription.delete_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/delete'
+  defaults:
+    _entity_form: 'outbound_subscription.delete'
+    _title: 'Delete Outbound Subscription'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+
+entity.outbound_field_mapping.collection:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/field-mappings'
+  defaults:
+    _entity_list: 'outbound_field_mapping'
+    _title: 'Outbound Field Mappings'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+
+entity.outbound_field_mapping.add_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/field-mappings/add'
+  defaults:
+    _entity_form: 'outbound_field_mapping.add'
+    _title: 'Add Field Mapping'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+
+entity.outbound_field_mapping.edit_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/field-mappings/{outbound_field_mapping}/edit'
+  defaults:
+    _entity_form: 'outbound_field_mapping.edit'
+    _title: 'Edit Field Mapping'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+      outbound_field_mapping:
+        type: entity:outbound_field_mapping
+
+entity.outbound_field_mapping.delete_form:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/field-mappings/{outbound_field_mapping}/delete'
+  defaults:
+    _entity_form: 'outbound_field_mapping.delete'
+    _title: 'Delete Field Mapping'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+      outbound_field_mapping:
+        type: entity:outbound_field_mapping
+
+entity_webhook_broadcast.subscription_delivery_logs:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/delivery-logs'
+  defaults:
+    _controller: '\Drupal\entity_webhook_broadcast\Controller\SubscriptionListController::deliveryLogs'
+    _title_callback: '\Drupal\entity_webhook_broadcast\Controller\SubscriptionListController::getDeliveryLogsTitle'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription
+
+entity_webhook_broadcast.test_webhook:
+  path: '/admin/config/services/entity-webhook/broadcast/endpoints/{outbound_endpoint}/subscriptions/{outbound_subscription}/test'
+  defaults:
+    _form: '\Drupal\entity_webhook_broadcast\Form\TestWebhookForm'
+    _title: 'Test Webhook'
+  requirements:
+    _permission: 'administer entity_webhook_broadcast'
+  options:
+    parameters:
+      outbound_endpoint:
+        type: entity:outbound_endpoint
+      outbound_subscription:
+        type: entity:outbound_subscription

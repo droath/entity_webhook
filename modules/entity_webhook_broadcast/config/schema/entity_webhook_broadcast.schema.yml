@@ -1,0 +1,86 @@
+entity_webhook_broadcast.outbound_endpoint.*:
+  type: config_entity
+  label: 'Outbound Endpoint'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    status:
+      type: boolean
+      label: 'Status'
+    entity_type:
+      type: string
+      label: 'Watched entity type'
+    entity_bundle:
+      type: string
+      label: 'Watched entity bundle (empty = all bundles)'
+    events:
+      type: sequence
+      label: 'CRUD events to watch'
+      sequence:
+        type: string
+        label: 'Event name'
+
+entity_webhook_broadcast.outbound_subscription.*:
+  type: config_entity
+  label: 'Outbound Subscription'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    endpoint_id:
+      type: string
+      label: 'Parent OutboundEndpoint ID'
+    url:
+      type: string
+      label: 'Destination webhook URL'
+    secret:
+      type: string
+      label: 'Shared HMAC secret'
+    signing_algorithm:
+      type: string
+      label: 'HMAC signing algorithm'
+    retry_max_attempts:
+      type: integer
+      label: 'Maximum delivery attempts'
+    retry_base_delay:
+      type: integer
+      label: 'Base retry delay in seconds'
+    active:
+      type: boolean
+      label: 'Active'
+
+entity_webhook_broadcast.outbound_field_mapping.*:
+  type: config_entity
+  label: 'Outbound Field Mapping'
+  mapping:
+    id:
+      type: string
+      label: 'Machine name'
+    label:
+      type: label
+      label: 'Label'
+    subscription_id:
+      type: string
+      label: 'Parent OutboundSubscription ID'
+    entity_field:
+      type: string
+      label: 'Source entity field machine name'
+    output_key:
+      type: string
+      label: 'Output JSON key'
+    mutation_plugin:
+      type: string
+      label: 'FieldValueMutation plugin ID'
+    mutation_config:
+      type: sequence
+      label: 'Mutation plugin configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'

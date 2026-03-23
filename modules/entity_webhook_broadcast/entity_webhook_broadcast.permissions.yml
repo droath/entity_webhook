@@ -1,0 +1,4 @@
+administer entity_webhook_broadcast:
+  title: 'Administer Entity Webhook Broadcast'
+  description: 'Manage outbound webhook broadcast endpoints, subscriptions, and field mappings.'
+  restrict access: true

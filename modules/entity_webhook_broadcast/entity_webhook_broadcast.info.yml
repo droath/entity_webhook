@@ -1,0 +1,8 @@
+php: 8.3
+type: module
+name: Entity Webhook Broadcast
+description: Provides outbound webhook broadcasting for entity CRUD events with queue-based async delivery, HMAC signing, and exponential backoff retry.
+core_version_requirement: ^10.3 || ^11
+package: Services
+dependencies:
+  - drupal:entity_webhook

@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Hook implementations for entity_webhook_broadcast.
+ */
+
+/**
+ * Implements hook_cron().
+ *
+ * Delegates to the RetryProcessor service which:
+ *   - Queries OutboundDeliveryLog entities with status='pending' whose
+ *     next_retry_at timestamp has passed.
+ *   - Re-enqueues each due entry as a new OutboundQueueItem with an
+ *     incremented attempt counter.
+ *
+ * A lock prevents concurrent execution if a previous cron run has not
+ * finished. The lock is released automatically when the request ends
+ * if not explicitly released.
+ */
+function entity_webhook_broadcast_cron(): void {
+  $lock = \Drupal::lock();
+
+  if (!$lock->acquire('entity_webhook_broadcast_cron')) {
+    \Drupal::logger('entity_webhook_broadcast')
+      ->warning('Outbound retry cron skipped: another process holds the lock.');
+    return;
+  }
+
+  try {
+    \Drupal::service('entity_webhook_broadcast.retry_processor')->processDue();
+  }
+  finally {
+    $lock->release('entity_webhook_broadcast_cron');
+  }
+}

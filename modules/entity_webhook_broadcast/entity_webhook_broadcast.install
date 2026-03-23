@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Install, update and uninstall functions for entity_webhook_broadcast.
+ *
+ * The OutboundDeliveryLog content entity table is created automatically by
+ * Drupal's entity schema system when the module is installed. No manual
+ * schema definition is required here.
+ */

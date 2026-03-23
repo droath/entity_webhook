@@ -1,0 +1,46 @@
+services:
+
+  logger.channel.entity_webhook_broadcast:
+    parent: logger.channel_base
+    arguments: ['entity_webhook_broadcast']
+
+  entity_webhook_broadcast.outbound_queue:
+    class: Drupal\entity_webhook_broadcast\Queue\OutboundQueueService
+    arguments:
+      - '@queue'
+
+  entity_webhook_broadcast.payload_builder:
+    class: Drupal\entity_webhook_broadcast\Service\PayloadBuilder
+    arguments:
+      - '@entity_type.manager'
+      - '@plugin.manager.field_value_mutation'
+
+  entity_webhook_broadcast.delivery_service:
+    class: Drupal\entity_webhook_broadcast\Service\DeliveryService
+    arguments:
+      - '@http_client'
+      - '@logger.channel.entity_webhook_broadcast'
+
+  entity_webhook_broadcast.retry_scheduler:
+    class: Drupal\entity_webhook_broadcast\Service\RetryScheduler
+
+  entity_webhook_broadcast.retry_processor:
+    class: Drupal\entity_webhook_broadcast\Service\RetryProcessor
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_webhook_broadcast.outbound_queue'
+      - '@datetime.time'
+      - '@logger.channel.entity_webhook_broadcast'
+
+  entity_webhook_broadcast.outbound_dispatcher:
+    class: Drupal\entity_webhook_broadcast\Service\OutboundDispatcher
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_webhook_broadcast.payload_builder'
+      - '@entity_webhook_broadcast.outbound_queue'
+      - '@logger.channel.entity_webhook_broadcast'
+
+  Drupal\entity_webhook_broadcast\Hook\EntityLifecycleHooks:
+    class: Drupal\entity_webhook_broadcast\Hook\EntityLifecycleHooks
+    arguments:
+      - '@entity_webhook_broadcast.outbound_dispatcher'
