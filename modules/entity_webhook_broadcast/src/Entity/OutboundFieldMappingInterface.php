@@ -10,8 +10,8 @@ use Drupal\Core\Config\Entity\ConfigEntityInterface;
  * Defines the interface for OutboundFieldMapping config entities.
  *
  * An OutboundFieldMapping belongs to a parent OutboundSubscription and maps
- * one entity field to a key in the outbound JSON payload, with an optional
- * FieldValueMutation plugin applied to the value.
+ * an outbound value resolver plugin output to a key in the outbound JSON
+ * payload, with an optional FieldValueMutation plugin applied to the value.
  *
  * ID format: {subscription_id}.{output_key}
  */
@@ -34,12 +34,20 @@ interface OutboundFieldMappingInterface extends ConfigEntityInterface {
   public function getSubscription(): ?OutboundSubscriptionInterface;
 
   /**
-   * Returns the source Drupal entity field machine name.
+   * Returns the outbound value resolver plugin ID.
    *
    * @return string
-   *   The field name (e.g., 'title', 'field_body').
+   *   The resolver plugin ID.
    */
-  public function getEntityField(): string;
+  public function getResolver(): string;
+
+  /**
+   * Returns the configuration for the outbound value resolver plugin.
+   *
+   * @return array<string, mixed>
+   *   Plugin configuration array.
+   */
+  public function getResolverConfig(): array;
 
   /**
    * Returns the output key name in the webhook JSON payload.

@@ -56,7 +56,8 @@ use Drupal\entity_webhook_broadcast\Form\OutboundFieldMappingForm;
     'id',
     'label',
     'subscription_id',
-    'entity_field',
+    'resolver',
+    'resolver_config',
     'output_key',
     'mutation_plugin',
     'mutation_config',
@@ -74,8 +75,15 @@ class OutboundFieldMapping extends ConfigEntityBase implements OutboundFieldMapp
   /** The parent OutboundSubscription machine name. */
   protected string $subscription_id = '';
 
-  /** The source Drupal entity field machine name. */
-  protected string $entity_field = '';
+  /** The outbound value resolver plugin ID. */
+  protected string $resolver = '';
+
+  /**
+   * The outbound value resolver plugin configuration.
+   *
+   * @var array<string, mixed>
+   */
+  protected array $resolver_config = [];
 
   /** The output JSON key name. */
   protected string $output_key = '';
@@ -117,9 +125,17 @@ class OutboundFieldMapping extends ConfigEntityBase implements OutboundFieldMapp
   /**
    * {@inheritdoc}
    */
-  public function getEntityField(): string
+  public function getResolver(): string
   {
-    return $this->entity_field;
+    return $this->resolver;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getResolverConfig(): array
+  {
+    return $this->resolver_config;
   }
 
   /**

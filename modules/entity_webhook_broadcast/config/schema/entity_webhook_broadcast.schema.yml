@@ -69,9 +69,15 @@ entity_webhook_broadcast.outbound_field_mapping.*:
     subscription_id:
       type: string
       label: 'Parent OutboundSubscription ID'
-    entity_field:
+    resolver:
       type: string
-      label: 'Source entity field machine name'
+      label: 'Outbound value resolver plugin ID'
+    resolver_config:
+      type: sequence
+      label: 'Resolver plugin configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'
     output_key:
       type: string
       label: 'Output JSON key'

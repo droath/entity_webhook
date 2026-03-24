@@ -23,8 +23,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
   label: new TranslatableMarkup('Expand Entity Reference'),
   description: new TranslatableMarkup('Expands entity reference fields into structured data using a view display as the field selector.'),
 )]
-class ExpandEntityReference extends FieldValueMutationBase implements ContainerFactoryPluginInterface
-{
+class ExpandEntityReference extends FieldValueMutationBase implements ContainerFactoryPluginInterface {
   /**
    * Constructs an ExpandEntityReference plugin.
    *
@@ -45,16 +44,14 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
     mixed $plugin_definition,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly EntityDisplayRepositoryInterface $entityDisplayRepository,
-  )
-  {
+  ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
 
   /**
    * {@inheritdoc}
    */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static
-  {
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): static {
     return new static(
       $configuration,
       $plugin_id,
@@ -68,18 +65,16 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * {@inheritdoc}
    */
   #[\Override]
-  public function defaultConfiguration(): array
-  {
+  public function defaultConfiguration(): array {
     return ['target_type' => '', 'view_mode' => ''];
   }
 
   /**
    * {@inheritdoc}
    */
-  public function mutate(mixed $value): mixed
-  {
+  public function mutate(mixed $value): mixed {
     if (is_int($value) || (is_string($value) && is_numeric($value))) {
-      return $this->expandIds([(int)$value], isSingleValue: TRUE);
+      return $this->expandIds([(int) $value], isSingleValue: TRUE);
     }
 
     if (is_array($value)) {
@@ -98,8 +93,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * {@inheritdoc}
    */
   #[\Override]
-  public function buildConfigurationForm(array $form, FormStateInterface $form_state): array
-  {
+  public function buildConfigurationForm(array $form, FormStateInterface $form_state): array {
     $currentTargetType = $this->resolveCurrentTargetType($form_state);
 
     $form['target_type'] = [
@@ -133,8 +127,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * {@inheritdoc}
    */
   #[\Override]
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void
-  {
+  public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
     $this->configuration['target_type'] = $form_state->getValue('target_type');
     $this->configuration['view_mode'] = $form_state->getValue('view_mode');
   }
@@ -154,8 +147,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return int[]|null
    *   The extracted IDs, or NULL if the format is not recognized.
    */
-  private function extractIdsFromArray(array $value): ?array
-  {
+  private function extractIdsFromArray(array $value): ?array {
     if (empty($value)) {
       return NULL;
     }
@@ -164,9 +156,9 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
 
     foreach ($value as $item) {
       if (is_int($item) || (is_string($item) && is_numeric($item))) {
-        $ids[] = (int)$item;
+        $ids[] = (int) $item;
       } elseif (is_array($item) && array_key_exists('target_id', $item)) {
-        $ids[] = (int)$item['target_id'];
+        $ids[] = (int) $item['target_id'];
       } else {
         return NULL;
       }
@@ -184,13 +176,13 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    *   Whether the original input was a single ID (returns an object instead of
    *   an array).
    *
-   * @return mixed
-   *   The expanded entity data.
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @return mixed
+   *   The expanded entity data.
    */
-  private function expandIds(array $ids, bool $isSingleValue): mixed
-  {
+  private function expandIds(array $ids, bool $isSingleValue): mixed {
     $targetType = $this->configuration['target_type'];
     $storage = $this->entityTypeManager->getStorage($targetType);
     $entities = $storage->loadMultiple($ids);
@@ -219,13 +211,13 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    *   The original entity ID used as fallback when no display components
    *   exist.
    *
-   * @return array<string, mixed>|int
-   *   The structured field data, or the entity ID if no components exist.
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @return array<string, mixed>|int
+   *   The structured field data, or the entity ID if no components exist.
    */
-  private function expandEntity(ContentEntityInterface $entity, int $id): array|int
-  {
+  private function expandEntity(ContentEntityInterface $entity, int $id): array|int {
     $display = $this->loadDisplay($entity);
     $components = $display?->getComponents() ?? [];
 
@@ -236,7 +228,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
     $data = [];
 
     foreach (array_keys($components) as $fieldName) {
-      $data[$fieldName] = $this->extractFieldValue($entity, (string)$fieldName);
+      $data[$fieldName] = $this->extractFieldValue($entity, (string) $fieldName);
     }
 
     return $data;
@@ -249,14 +241,13 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @param \Drupal\Core\Entity\ContentEntityInterface $entity
    *   The entity to load the display for.
    *
-   * @return \Drupal\Core\Entity\Display\EntityViewDisplayInterface|null
-   *   The display, or NULL if not found.
-   *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @return \Drupal\Core\Entity\Display\EntityViewDisplayInterface|null
+   *   The display, or NULL if not found.
    */
-  private function loadDisplay(ContentEntityInterface $entity): ?EntityViewDisplayInterface
-  {
+  private function loadDisplay(ContentEntityInterface $entity): ?EntityViewDisplayInterface {
     $displayStorage = $this->entityTypeManager->getStorage('entity_view_display');
     $viewMode = $this->configuration['view_mode'];
     $displayId = $entity->getEntityTypeId() . '.' . $entity->bundle() . '.' . $viewMode;
@@ -277,13 +268,13 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @param string $fieldName
    *   The field machine name.
    *
-   * @return mixed
-   *   The extracted field value.
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @return mixed
+   *   The extracted field value.
    */
-  private function extractFieldValue(ContentEntityInterface $entity, string $fieldName): mixed
-  {
+  private function extractFieldValue(ContentEntityInterface $entity, string $fieldName): mixed {
     $fieldList = $entity->get($fieldName);
     $values = $fieldList->getValue();
 
@@ -294,7 +285,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
     $targetType = $this->resolveEntityReferenceTargetType($fieldList->getFieldDefinition());
 
     if ($targetType !== NULL) {
-      $ids = array_map(fn (array $item) => (int)$item['target_id'], $values);
+      $ids = array_map(fn (array $item) => (int) $item['target_id'], $values);
       $isSingle = count($ids) === 1;
       $expanded = $this->expandReferenceIds($ids, $isSingle, $targetType);
       if ($expanded !== NULL) {
@@ -321,8 +312,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return string|null
    *   The target entity type ID, or NULL when not an entity reference field.
    */
-  private function resolveEntityReferenceTargetType(?FieldDefinitionInterface $fieldDefinition): ?string
-  {
+  private function resolveEntityReferenceTargetType(?FieldDefinitionInterface $fieldDefinition): ?string {
     if ($fieldDefinition === NULL) {
       return NULL;
     }
@@ -351,14 +341,13 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @param string $targetType
    *   The target entity type ID.
    *
-   * @return mixed
-   *   The expanded data, or NULL when no matching display exists.
-   *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
+   *
+   * @return mixed
+   *   The expanded data, or NULL when no matching display exists.
    */
-  private function expandReferenceIds(array $ids, bool $isSingleValue, string $targetType): mixed
-  {
+  private function expandReferenceIds(array $ids, bool $isSingleValue, string $targetType): mixed {
     $storage = $this->entityTypeManager->getStorage($targetType);
     $entities = $storage->loadMultiple($ids);
 
@@ -392,8 +381,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return mixed
    *   The unwrapped value or the original item.
    */
-  private function unwrapItem(mixed $item): mixed
-  {
+  private function unwrapItem(mixed $item): mixed {
     if (! is_array($item)) {
       return $item;
     }
@@ -407,13 +395,12 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return array<string, string>
    *   Options keyed by entity type ID, valued by label.
    */
-  private function buildEntityTypeOptions(): array
-  {
+  private function buildEntityTypeOptions(): array {
     $options = [];
 
     foreach ($this->entityTypeManager->getDefinitions() as $entityTypeId => $definition) {
       if ($definition->getGroup() === 'content') {
-        $options[$entityTypeId] = (string)$definition->getLabel();
+        $options[$entityTypeId] = (string) $definition->getLabel();
       }
     }
 
@@ -440,8 +427,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return string
    *   The currently selected target entity type ID, or empty string.
    */
-  private function resolveCurrentTargetType(FormStateInterface $form_state): string
-  {
+  private function resolveCurrentTargetType(FormStateInterface $form_state): string {
     $userInput = $form_state->getUserInput();
     $fromInput = $userInput['mutation_config']['target_type'] ?? NULL;
 
@@ -463,8 +449,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    * @return array<string, string>
    *   Options keyed by view mode ID, valued by label.
    */
-  private function buildViewModeOptions(string $targetType): array
-  {
+  private function buildViewModeOptions(string $targetType): array {
     if ($targetType !== '') {
       return $this->entityDisplayRepository->getViewModeOptions($targetType);
     }
@@ -473,7 +458,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
 
     foreach ($this->entityDisplayRepository->getAllViewModes() as $viewModes) {
       foreach ($viewModes as $viewModeId => $viewModeInfo) {
-        $options[$viewModeId] ??= (string)$viewModeInfo['label'];
+        $options[$viewModeId] ??= (string) $viewModeInfo['label'];
       }
     }
 

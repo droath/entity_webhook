@@ -83,7 +83,7 @@ class OutboundFieldMappingListBuilder extends ConfigEntityListBuilder {
    */
   public function buildHeader(): array {
     $header['label'] = $this->t('Label');
-    $header['entity_field'] = $this->t('Entity Field');
+    $header['resolver'] = $this->t('Resolver');
     $header['output_key'] = $this->t('Output Key');
     $header['mutation'] = $this->t('Mutation');
 
@@ -97,7 +97,7 @@ class OutboundFieldMappingListBuilder extends ConfigEntityListBuilder {
     assert($entity instanceof OutboundFieldMappingInterface);
 
     $row['label'] = $entity->label();
-    $row['entity_field'] = $entity->getEntityField();
+    $row['resolver'] = $entity->getResolver() !== '' ? $entity->getResolver() : $this->t('None');
     $row['output_key'] = $entity->getOutputKey();
     $row['mutation'] = $entity->getMutationPlugin() !== '' ? $entity->getMutationPlugin() : $this->t('None');
 

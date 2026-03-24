@@ -9,13 +9,15 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook_broadcast\Entity\OutboundFieldMappingInterface;
 use Drupal\entity_webhook_broadcast\Entity\OutboundSubscriptionInterface;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface;
 
 /**
- * Builds outbound webhook payloads by mapping entity fields to output keys.
+ * Builds outbound webhook payloads by mapping entity values to output keys.
  *
- * Loads OutboundFieldMapping children for the given subscription, reads each
- * mapped entity field value, applies any configured FieldValueMutation plugin,
- * and returns the structured payload array keyed by output_key.
+ * Loads OutboundFieldMapping children for the given subscription, delegates
+ * value resolution to the configured OutboundValueResolver plugin, applies any
+ * configured FieldValueMutation plugin, and returns the structured payload
+ * array keyed by output_key.
  */
 class PayloadBuilder implements PayloadBuilderInterface {
 
@@ -26,10 +28,13 @@ class PayloadBuilder implements PayloadBuilderInterface {
    *   The entity type manager for loading OutboundFieldMapping entities.
    * @param \Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface $mutationManager
    *   The parent module's field value mutation plugin manager.
+   * @param \Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface $resolverManager
+   *   The outbound value resolver plugin manager.
    */
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly FieldValueMutationManagerInterface $mutationManager,
+    private readonly OutboundValueResolverManagerInterface $resolverManager,
   ) {
   }
 
@@ -41,7 +46,7 @@ class PayloadBuilder implements PayloadBuilderInterface {
     $payload = [];
 
     foreach ($mappings as $mapping) {
-      $value = $this->extractFieldValue($entity, $mapping->getEntityField());
+      $value = $this->resolveValue($entity, $mapping);
       $value = $this->applyMutation($value, $mapping);
       $payload[$mapping->getOutputKey()] = $value;
     }
@@ -80,45 +85,33 @@ class PayloadBuilder implements PayloadBuilderInterface {
   }
 
   /**
-   * Extracts a raw field value from the entity.
-   *
-   * For single-value fields the first item's raw value is returned. For
-   * multi-value fields an array of raw values is returned. Fields that do
-   * not exist on the entity return NULL.
+   * Delegates value resolution to the configured OutboundValueResolver plugin.
    *
    * @param \Drupal\Core\Entity\EntityInterface $entity
    *   The source entity.
-   * @param string $fieldName
-   *   The field machine name.
+   * @param \Drupal\entity_webhook_broadcast\Entity\OutboundFieldMappingInterface $mapping
+   *   The field mapping entity.
    *
    * @return mixed
-   *   The raw field value.
+   *   The resolved value.
    */
-  private function extractFieldValue(EntityInterface $entity, string $fieldName): mixed {
-    if (!$entity->hasField($fieldName)) {
+  private function resolveValue(EntityInterface $entity, OutboundFieldMappingInterface $mapping): mixed {
+    $pluginId = $mapping->getResolver();
+
+    if ($pluginId === '') {
       return NULL;
     }
 
-    $fieldList = $entity->get($fieldName);
-    $values = $fieldList->getValue();
+    $resolver = $this->resolverManager->createInstance($pluginId, $mapping->getResolverConfig());
 
-    if (empty($values)) {
-      return NULL;
-    }
-
-    if (count($values) === 1) {
-      $first = reset($values);
-      return is_array($first) && count($first) === 1 ? reset($first) : $first;
-    }
-
-    return array_map(fn($item) => is_array($item) && count($item) === 1 ? reset($item) : $item, $values);
+    return $resolver->resolve($entity);
   }
 
   /**
    * Applies the configured FieldValueMutation plugin to the value.
    *
    * @param mixed $value
-   *   The extracted field value.
+   *   The resolved field value.
    * @param \Drupal\entity_webhook_broadcast\Entity\OutboundFieldMappingInterface $mapping
    *   The field mapping entity.
    *

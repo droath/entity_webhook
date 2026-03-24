@@ -31,7 +31,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'my_sub.title',
       'label' => 'Title Mapping',
       'subscription_id' => 'my_sub',
-      'entity_field' => 'title',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'title'],
       'output_key' => 'title',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -44,10 +45,35 @@ class OutboundFieldMappingTest extends KernelTestBase {
     $this->assertSame('my_sub.title', $loaded->id());
     $this->assertSame('Title Mapping', $loaded->label());
     $this->assertSame('my_sub', $loaded->getSubscriptionId());
-    $this->assertSame('title', $loaded->getEntityField());
+    $this->assertSame('entity_field', $loaded->getResolver());
+    $this->assertSame(['entity_field' => 'title'], $loaded->getResolverConfig());
     $this->assertSame('title', $loaded->getOutputKey());
     $this->assertSame('', $loaded->getMutationPlugin());
     $this->assertSame([], $loaded->getMutationConfig());
+  }
+
+  /**
+   * Tests that resolver plugin and config are stored and retrieved correctly.
+   */
+  public function testResolverPluginAndConfigStoredAndRetrieved(): void {
+    // Arrange + Act
+    OutboundFieldMapping::create([
+      'id' => 'sub_resolver.price',
+      'label' => 'Price Mapping',
+      'subscription_id' => 'sub_resolver',
+      'resolver' => 'static_value',
+      'resolver_config' => ['value' => '42'],
+      'output_key' => 'price',
+      'mutation_plugin' => '',
+      'mutation_config' => [],
+    ])->save();
+
+    // Assert
+    /** @var \Drupal\entity_webhook_broadcast\Entity\OutboundFieldMappingInterface $loaded */
+    $loaded = OutboundFieldMapping::load('sub_resolver.price');
+
+    $this->assertSame('static_value', $loaded->getResolver());
+    $this->assertSame(['value' => '42'], $loaded->getResolverConfig());
   }
 
   /**
@@ -59,7 +85,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'acme_sub.node_title',
       'label' => 'Node Title',
       'subscription_id' => 'acme_sub',
-      'entity_field' => 'title',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'title'],
       'output_key' => 'node_title',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -83,7 +110,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'sub_with_mutation.price',
       'label' => 'Price Mapping',
       'subscription_id' => 'sub_with_mutation',
-      'entity_field' => 'field_price',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_price'],
       'output_key' => 'price',
       'mutation_plugin' => 'price_cents_to_decimal',
       'mutation_config' => ['precision' => 2, 'currency' => 'USD'],
@@ -114,7 +142,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'real_sub.body',
       'label' => 'Body Mapping',
       'subscription_id' => 'real_sub',
-      'entity_field' => 'body',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'body'],
       'output_key' => 'body',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -139,7 +168,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'ghost_sub.field_x',
       'label' => 'Field X',
       'subscription_id' => 'ghost_sub',
-      'entity_field' => 'field_x',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_x'],
       'output_key' => 'field_x',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -169,7 +199,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'dep_sub.status',
       'label' => 'Status Mapping',
       'subscription_id' => 'dep_sub',
-      'entity_field' => 'status',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'status'],
       'output_key' => 'status',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -205,7 +236,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'cascade_sub.field_one',
       'label' => 'Field One',
       'subscription_id' => 'cascade_sub',
-      'entity_field' => 'field_one',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_one'],
       'output_key' => 'field_one',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -215,7 +247,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'cascade_sub.field_two',
       'label' => 'Field Two',
       'subscription_id' => 'cascade_sub',
-      'entity_field' => 'field_two',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_two'],
       'output_key' => 'field_two',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -258,7 +291,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'mid_sub.leaf_field',
       'label' => 'Leaf Field',
       'subscription_id' => 'mid_sub',
-      'entity_field' => 'leaf_field',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'leaf_field'],
       'output_key' => 'leaf_field',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -284,7 +318,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'updatable_sub.field_a',
       'label' => 'Original Label',
       'subscription_id' => 'updatable_sub',
-      'entity_field' => 'field_a',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_a'],
       'output_key' => 'field_a',
       'mutation_plugin' => '',
       'mutation_config' => [],
@@ -315,7 +350,8 @@ class OutboundFieldMappingTest extends KernelTestBase {
       'id' => 'del_sub.field_z',
       'label' => 'Field Z',
       'subscription_id' => 'del_sub',
-      'entity_field' => 'field_z',
+      'resolver' => 'entity_field',
+      'resolver_config' => ['entity_field' => 'field_z'],
       'output_key' => 'field_z',
       'mutation_plugin' => '',
       'mutation_config' => [],

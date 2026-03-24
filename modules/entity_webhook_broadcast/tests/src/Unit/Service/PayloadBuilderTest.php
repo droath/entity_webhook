@@ -8,11 +8,12 @@ use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
-use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook_broadcast\Entity\OutboundFieldMappingInterface;
 use Drupal\entity_webhook_broadcast\Entity\OutboundSubscriptionInterface;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverInterface;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface;
 use Drupal\entity_webhook_broadcast\Service\PayloadBuilder;
 use Drupal\Tests\UnitTestCase;
 
@@ -35,6 +36,11 @@ class PayloadBuilderTest extends UnitTestCase {
   private FieldValueMutationManagerInterface $mutationManager;
 
   /**
+   * The mocked outbound value resolver plugin manager.
+   */
+  private OutboundValueResolverManagerInterface $resolverManager;
+
+  /**
    * The mocked storage for outbound_field_mapping entities.
    */
   private EntityStorageInterface $fieldMappingStorage;
@@ -52,6 +58,7 @@ class PayloadBuilderTest extends UnitTestCase {
 
     $this->fieldMappingStorage = $this->createMock(EntityStorageInterface::class);
     $this->mutationManager = $this->createMock(FieldValueMutationManagerInterface::class);
+    $this->resolverManager = $this->createMock(OutboundValueResolverManagerInterface::class);
 
     $this->entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
     $this->entityTypeManager
@@ -62,6 +69,7 @@ class PayloadBuilderTest extends UnitTestCase {
     $this->builder = new PayloadBuilder(
       $this->entityTypeManager,
       $this->mutationManager,
+      $this->resolverManager,
     );
   }
 
@@ -87,17 +95,25 @@ class PayloadBuilderTest extends UnitTestCase {
   }
 
   /**
-   * Tests that build maps a single field to its configured output key.
+   * Tests that build delegates to the resolver plugin and maps its output to the key.
    *
    * @covers ::build
    */
-  public function testBuildMapsSingleFieldToOutputKey(): void {
+  public function testBuildDelegatesToResolverPlugin(): void {
     // Arrange
     $subscription = $this->createSubscriptionMock('sub_1');
-    $entity = $this->createEntityWithField('title', [['value' => 'Hello World']]);
+    $entity = $this->createMock(EntityInterface::class);
+
+    $resolver = $this->createMock(OutboundValueResolverInterface::class);
+    $resolver->method('resolve')->with($entity)->willReturn('Hello World');
+
+    $this->resolverManager->method('createInstance')
+      ->with('entity_field', ['entity_field' => 'title'])
+      ->willReturn($resolver);
 
     $mapping = $this->createFieldMappingMock(
-      entityField: 'title',
+      resolver: 'entity_field',
+      resolverConfig: ['entity_field' => 'title'],
       outputKey: 'node_title',
       mutationPlugin: '',
       mutationConfig: [],
@@ -115,36 +131,37 @@ class PayloadBuilderTest extends UnitTestCase {
   }
 
   /**
-   * Tests that build maps multiple fields to their respective output keys.
+   * Tests that build maps multiple field mappings to their respective output keys.
    *
    * @covers ::build
    */
-  public function testBuildMapsMultipleFieldsToTheirOutputKeys(): void {
+  public function testBuildMapsMultipleFieldMappingsToTheirOutputKeys(): void {
     // Arrange
     $subscription = $this->createSubscriptionMock('sub_2');
+    $entity = $this->createMock(EntityInterface::class);
 
-    $entity = $this->createMock(FieldableEntityInterface::class);
-    $entity->method('hasField')->willReturnMap([
-      ['title', TRUE],
-      ['field_status', TRUE],
-    ]);
+    $titleResolver = $this->createMock(OutboundValueResolverInterface::class);
+    $titleResolver->method('resolve')->willReturn('My Node');
 
-    $titleList = $this->createFieldListMock([['value' => 'My Node']]);
-    $statusList = $this->createFieldListMock([['value' => 1]]);
+    $statusResolver = $this->createMock(OutboundValueResolverInterface::class);
+    $statusResolver->method('resolve')->willReturn(1);
 
-    $entity->method('get')->willReturnMap([
-      ['title', $titleList],
-      ['field_status', $statusList],
-    ]);
+    $this->resolverManager->method('createInstance')
+      ->willReturnMap([
+        ['entity_field', ['entity_field' => 'title'], $titleResolver],
+        ['entity_field', ['entity_field' => 'field_status'], $statusResolver],
+      ]);
 
     $titleMapping = $this->createFieldMappingMock(
-      entityField: 'title',
+      resolver: 'entity_field',
+      resolverConfig: ['entity_field' => 'title'],
       outputKey: 'name',
       mutationPlugin: '',
       mutationConfig: [],
     );
     $statusMapping = $this->createFieldMappingMock(
-      entityField: 'field_status',
+      resolver: 'entity_field',
+      resolverConfig: ['entity_field' => 'field_status'],
       outputKey: 'published',
       mutationPlugin: '',
       mutationConfig: [],
@@ -153,9 +170,7 @@ class PayloadBuilderTest extends UnitTestCase {
     $ids = ['sub_2.name' => 'sub_2.name', 'sub_2.published' => 'sub_2.published'];
     $query = $this->createQueryMock($ids);
     $this->fieldMappingStorage->method('getQuery')->willReturn($query);
-    $this->fieldMappingStorage
-      ->method('loadMultiple')
-      ->willReturn([$titleMapping, $statusMapping]);
+    $this->fieldMappingStorage->method('loadMultiple')->willReturn([$titleMapping, $statusMapping]);
 
     // Act
     $payload = $this->builder->build($entity, $subscription);
@@ -166,45 +181,21 @@ class PayloadBuilderTest extends UnitTestCase {
   }
 
   /**
-   * Tests that build returns NULL for a field that does not exist on the entity.
+   * Tests that build applies a FieldValueMutation plugin to the resolved value.
    *
    * @covers ::build
    */
-  public function testBuildReturnsNullForNonExistentEntityField(): void {
-    // Arrange
-    $subscription = $this->createSubscriptionMock('sub_3');
-
-    $entity = $this->createMock(FieldableEntityInterface::class);
-    $entity->method('hasField')->with('nonexistent_field')->willReturn(FALSE);
-
-    $mapping = $this->createFieldMappingMock(
-      entityField: 'nonexistent_field',
-      outputKey: 'missing',
-      mutationPlugin: '',
-      mutationConfig: [],
-    );
-
-    $query = $this->createQueryMock(['sub_3.missing' => 'sub_3.missing']);
-    $this->fieldMappingStorage->method('getQuery')->willReturn($query);
-    $this->fieldMappingStorage->method('loadMultiple')->willReturn([$mapping]);
-
-    // Act
-    $payload = $this->builder->build($entity, $subscription);
-
-    // Assert
-    $this->assertArrayHasKey('missing', $payload);
-    $this->assertNull($payload['missing']);
-  }
-
-  /**
-   * Tests that build applies a FieldValueMutation plugin to the extracted value.
-   *
-   * @covers ::build
-   */
-  public function testBuildAppliesMutationPluginToExtractedValue(): void {
+  public function testBuildCombinesResolverAndMutation(): void {
     // Arrange
     $subscription = $this->createSubscriptionMock('sub_4');
-    $entity = $this->createEntityWithField('title', [['value' => 'hello world']]);
+    $entity = $this->createMock(EntityInterface::class);
+
+    $resolver = $this->createMock(OutboundValueResolverInterface::class);
+    $resolver->method('resolve')->willReturn('hello world');
+
+    $this->resolverManager->method('createInstance')
+      ->with('entity_field', ['entity_field' => 'title'])
+      ->willReturn($resolver);
 
     $mutationPlugin = $this->createMock(FieldValueMutationInterface::class);
     $mutationPlugin->method('mutate')
@@ -216,7 +207,8 @@ class PayloadBuilderTest extends UnitTestCase {
       ->willReturn($mutationPlugin);
 
     $mapping = $this->createFieldMappingMock(
-      entityField: 'title',
+      resolver: 'entity_field',
+      resolverConfig: ['entity_field' => 'title'],
       outputKey: 'title_upper',
       mutationPlugin: 'to_uppercase',
       mutationConfig: ['key' => 'config'],
@@ -231,40 +223,6 @@ class PayloadBuilderTest extends UnitTestCase {
 
     // Assert
     $this->assertSame('HELLO WORLD', $payload['title_upper']);
-  }
-
-  /**
-   * Tests that build passes the mutation config to createInstance.
-   *
-   * @covers ::build
-   */
-  public function testBuildPassesMutationConfigToPluginManager(): void {
-    // Arrange
-    $subscription = $this->createSubscriptionMock('sub_5');
-    $entity = $this->createEntityWithField('field_price', [['value' => '1999']]);
-
-    $mutationPlugin = $this->createMock(FieldValueMutationInterface::class);
-    $mutationPlugin->method('mutate')->willReturn(19.99);
-
-    $expectedConfig = ['precision' => 2, 'currency' => 'USD'];
-    $this->mutationManager->expects($this->once())
-      ->method('createInstance')
-      ->with('price_cents_to_decimal', $expectedConfig)
-      ->willReturn($mutationPlugin);
-
-    $mapping = $this->createFieldMappingMock(
-      entityField: 'field_price',
-      outputKey: 'price',
-      mutationPlugin: 'price_cents_to_decimal',
-      mutationConfig: $expectedConfig,
-    );
-
-    $query = $this->createQueryMock(['sub_5.price' => 'sub_5.price']);
-    $this->fieldMappingStorage->method('getQuery')->willReturn($query);
-    $this->fieldMappingStorage->method('loadMultiple')->willReturn([$mapping]);
-
-    // Act
-    $this->builder->build($entity, $subscription);
   }
 
   /**
@@ -287,6 +245,36 @@ class PayloadBuilderTest extends UnitTestCase {
   }
 
   /**
+   * Tests that build returns NULL for output key when resolver plugin ID is empty.
+   *
+   * @covers ::build
+   */
+  public function testBuildReturnsNullWhenResolverPluginIdIsEmpty(): void {
+    // Arrange
+    $subscription = $this->createSubscriptionMock('sub_3');
+    $entity = $this->createMock(EntityInterface::class);
+
+    $mapping = $this->createFieldMappingMock(
+      resolver: '',
+      resolverConfig: [],
+      outputKey: 'missing',
+      mutationPlugin: '',
+      mutationConfig: [],
+    );
+
+    $query = $this->createQueryMock(['sub_3.missing' => 'sub_3.missing']);
+    $this->fieldMappingStorage->method('getQuery')->willReturn($query);
+    $this->fieldMappingStorage->method('loadMultiple')->willReturn([$mapping]);
+
+    // Act
+    $payload = $this->builder->build($entity, $subscription);
+
+    // Assert
+    $this->assertArrayHasKey('missing', $payload);
+    $this->assertNull($payload['missing']);
+  }
+
+  /**
    * Creates a mock OutboundSubscriptionInterface with the given ID.
    *
    * @param string $id
@@ -298,50 +286,17 @@ class PayloadBuilderTest extends UnitTestCase {
   private function createSubscriptionMock(string $id): OutboundSubscriptionInterface {
     $subscription = $this->createMock(OutboundSubscriptionInterface::class);
     $subscription->method('id')->willReturn($id);
+
     return $subscription;
-  }
-
-  /**
-   * Creates a mock FieldableEntityInterface that returns a field with the given values.
-   *
-   * @param string $fieldName
-   *   The field name.
-   * @param array<int, array<string, mixed>> $values
-   *   The raw field values as returned by FieldItemListInterface::getValue().
-   *
-   * @return \Drupal\Core\Entity\FieldableEntityInterface
-   *   The mock entity.
-   */
-  private function createEntityWithField(string $fieldName, array $values): FieldableEntityInterface {
-    $entity = $this->createMock(FieldableEntityInterface::class);
-    $entity->method('hasField')->with($fieldName)->willReturn(TRUE);
-
-    $fieldList = $this->createFieldListMock($values);
-    $entity->method('get')->with($fieldName)->willReturn($fieldList);
-
-    return $entity;
-  }
-
-  /**
-   * Creates a mock FieldItemListInterface returning the given values.
-   *
-   * @param array<int, array<string, mixed>> $values
-   *   The raw field values.
-   *
-   * @return \Drupal\Core\Field\FieldItemListInterface
-   *   The mock field list.
-   */
-  private function createFieldListMock(array $values): FieldItemListInterface {
-    $fieldList = $this->createMock(FieldItemListInterface::class);
-    $fieldList->method('getValue')->willReturn($values);
-    return $fieldList;
   }
 
   /**
    * Creates a mock OutboundFieldMappingInterface with the given properties.
    *
-   * @param string $entityField
-   *   The entity field machine name.
+   * @param string $resolver
+   *   The resolver plugin ID.
+   * @param array<string, mixed> $resolverConfig
+   *   The resolver plugin configuration.
    * @param string $outputKey
    *   The output JSON key.
    * @param string $mutationPlugin
@@ -353,16 +308,19 @@ class PayloadBuilderTest extends UnitTestCase {
    *   The mock field mapping.
    */
   private function createFieldMappingMock(
-    string $entityField,
+    string $resolver,
+    array $resolverConfig,
     string $outputKey,
     string $mutationPlugin,
     array $mutationConfig,
   ): OutboundFieldMappingInterface {
     $mapping = $this->createMock(OutboundFieldMappingInterface::class);
-    $mapping->method('getEntityField')->willReturn($entityField);
+    $mapping->method('getResolver')->willReturn($resolver);
+    $mapping->method('getResolverConfig')->willReturn($resolverConfig);
     $mapping->method('getOutputKey')->willReturn($outputKey);
     $mapping->method('getMutationPlugin')->willReturn($mutationPlugin);
     $mapping->method('getMutationConfig')->willReturn($mutationConfig);
+
     return $mapping;
   }
 

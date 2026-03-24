@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\entity_webhook_broadcast\Unit\Form;
 
-use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook_broadcast\Form\OutboundFieldMappingForm;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface;
 use Drupal\Tests\UnitTestCase;
 
 /**
@@ -34,12 +34,12 @@ class OutboundFieldMappingFormTest extends UnitTestCase {
     parent::setUp();
 
     $routeMatch = $this->createMock(RouteMatchInterface::class);
-    $entityFieldManager = $this->createMock(EntityFieldManagerInterface::class);
+    $resolverManager = $this->createMock(OutboundValueResolverManagerInterface::class);
     $mutationManager = $this->createMock(FieldValueMutationManagerInterface::class);
 
     $this->form = new OutboundFieldMappingFormTestable(
       $routeMatch,
-      $entityFieldManager,
+      $resolverManager,
       $mutationManager,
     );
   }
