@@ -22,7 +22,7 @@ class OutboundDeliveryLogTest extends KernelTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['entity_webhook', 'entity_webhook_broadcast', 'user', 'system'];
+  protected static $modules = ['entity_webhook', 'entity_webhook_broadcast', 'user', 'system', 'views'];
 
   /**
    * {@inheritdoc}
@@ -429,11 +429,6 @@ class OutboundDeliveryLogTest extends KernelTestBase {
    * expected key so Views can discover delivery log fields for admin dashboards.
    */
   public function testViewsDataHandlerExposesDeliveryLogTable(): void {
-    // Arrange: the views module must be available for EntityViewsData
-    if (!$this->container->get('module_handler')->moduleExists('views')) {
-      $this->markTestSkipped('Views module is not available in the test environment.');
-    }
-
     // Act
     $viewsData = $this->container
       ->get('entity_type.manager')
@@ -445,7 +440,7 @@ class OutboundDeliveryLogTest extends KernelTestBase {
     $table = $viewsData['outbound_delivery_log'];
 
     // Table group and provider metadata are set
-    $this->assertSame('Outbound Delivery Log', $table['table']['group']);
+    $this->assertEquals('Outbound Delivery Log', $table['table']['group']);
     $this->assertSame('entity_webhook_broadcast', $table['table']['provider']);
   }
 
@@ -453,11 +448,6 @@ class OutboundDeliveryLogTest extends KernelTestBase {
    * Tests that status filter uses in_operator handler for filtered admin views.
    */
   public function testViewsDataStatusFieldUsesInOperatorFilter(): void {
-    // Arrange
-    if (!$this->container->get('module_handler')->moduleExists('views')) {
-      $this->markTestSkipped('Views module is not available in the test environment.');
-    }
-
     // Act
     $viewsData = $this->container
       ->get('entity_type.manager')
