@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\entity_webhook_broadcast\Kernel\Plugin;
 
 use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\EntityFieldResolver;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\EntityReferenceFieldResolver;
+use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\FieldComponentResolver;
 use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverInterface;
 use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManager;
 use Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface;
@@ -35,9 +37,9 @@ class OutboundValueResolverManagerTest extends KernelTestBase {
   }
 
   /**
-   * Tests that the plugin manager discovers both bundled resolver plugins.
+   * Tests that the plugin manager discovers all bundled resolver plugins.
    */
-  public function testPluginManagerDiscoversBothBundledPlugins(): void {
+  public function testPluginManagerDiscoversAllBundledPlugins(): void {
     // Arrange
     /** @var \Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface $manager */
     $manager = $this->container->get('plugin.manager.outbound_value_resolver');
@@ -48,6 +50,8 @@ class OutboundValueResolverManagerTest extends KernelTestBase {
     // Assert
     $this->assertArrayHasKey('entity_field', $definitions);
     $this->assertArrayHasKey('static_value', $definitions);
+    $this->assertArrayHasKey('entity_reference_field', $definitions);
+    $this->assertArrayHasKey('field_component', $definitions);
   }
 
   /**
@@ -72,9 +76,9 @@ class OutboundValueResolverManagerTest extends KernelTestBase {
   }
 
   /**
-   * Tests that getOptions() includes both bundled plugin IDs.
+   * Tests that getOptions() includes all bundled plugin IDs.
    */
-  public function testGetOptionsIncludesBothBundledPluginIds(): void {
+  public function testGetOptionsIncludesAllBundledPluginIds(): void {
     // Arrange
     /** @var \Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface $manager */
     $manager = $this->container->get('plugin.manager.outbound_value_resolver');
@@ -85,6 +89,8 @@ class OutboundValueResolverManagerTest extends KernelTestBase {
     // Assert
     $this->assertArrayHasKey('entity_field', $options);
     $this->assertArrayHasKey('static_value', $options);
+    $this->assertArrayHasKey('entity_reference_field', $options);
+    $this->assertArrayHasKey('field_component', $options);
   }
 
   /**
@@ -178,6 +184,38 @@ class OutboundValueResolverManagerTest extends KernelTestBase {
 
     // Assert
     $this->assertSame($configuredValue, $result);
+  }
+
+  /**
+   * Tests that createInstance() returns an EntityReferenceFieldResolver plugin.
+   */
+  public function testCreateInstanceReturnsEntityReferenceFieldResolverPlugin(): void {
+    // Arrange
+    /** @var \Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface $manager */
+    $manager = $this->container->get('plugin.manager.outbound_value_resolver');
+
+    // Act
+    $plugin = $manager->createInstance('entity_reference_field', ['entity_field' => 'field_ref', 'target_field' => 'title']);
+
+    // Assert
+    $this->assertInstanceOf(OutboundValueResolverInterface::class, $plugin);
+    $this->assertInstanceOf(EntityReferenceFieldResolver::class, $plugin);
+  }
+
+  /**
+   * Tests that createInstance() returns a FieldComponentResolver plugin.
+   */
+  public function testCreateInstanceReturnsFieldComponentResolverPlugin(): void {
+    // Arrange
+    /** @var \Drupal\entity_webhook_broadcast\Plugin\OutboundValueResolver\OutboundValueResolverManagerInterface $manager */
+    $manager = $this->container->get('plugin.manager.outbound_value_resolver');
+
+    // Act
+    $plugin = $manager->createInstance('field_component', ['entity_field' => 'field_price', 'component' => 'number']);
+
+    // Assert
+    $this->assertInstanceOf(OutboundValueResolverInterface::class, $plugin);
+    $this->assertInstanceOf(FieldComponentResolver::class, $plugin);
   }
 
   /**
