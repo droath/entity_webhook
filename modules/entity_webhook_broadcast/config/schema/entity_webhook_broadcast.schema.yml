@@ -23,7 +23,12 @@ entity_webhook_broadcast.outbound_endpoint.*:
       sequence:
         type: string
         label: 'Event name'
-
+    conditions:
+      type: sequence
+      label: 'Event conditions'
+      sequence:
+        type: condition.plugin.[id]
+        label: 'Event condition'
 entity_webhook_broadcast.outbound_subscription.*:
   type: config_entity
   label: 'Outbound Subscription'

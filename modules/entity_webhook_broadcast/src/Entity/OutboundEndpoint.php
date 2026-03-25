@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook_broadcast\Entity;
 
+use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Condition\ConditionPluginCollection;
 use Drupal\Core\Entity\EntityDeleteForm;
 use Drupal\Core\Config\Entity\ConfigEntityBase;
 use Drupal\Core\Entity\Attribute\ConfigEntityType;
+use Drupal\Core\Entity\EntityWithPluginCollectionInterface;
+use Drupal\Core\Executable\ExecutableManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
 use Drupal\entity_webhook_broadcast\Form\OutboundEndpointForm;
@@ -57,9 +61,10 @@ use Drupal\entity_webhook_broadcast\Form\OutboundEndpointForm;
     'entity_type',
     'entity_bundle',
     'events',
+    'conditions',
   ],
 )]
-class OutboundEndpoint extends ConfigEntityBase implements OutboundEndpointInterface
+class OutboundEndpoint extends ConfigEntityBase implements OutboundEndpointInterface, EntityWithPluginCollectionInterface
 {
 
   /** The endpoint machine name. */
@@ -80,6 +85,23 @@ class OutboundEndpoint extends ConfigEntityBase implements OutboundEndpointInter
    * @var string[]
    */
   protected array $events = [];
+
+  /**
+   * The raw condition plugin configuration keyed by instance ID.
+   *
+   * @var array<string, mixed>
+   */
+  protected array $conditions = [];
+
+  /**
+   * The lazy-loaded condition plugin collection.
+   */
+  private ?ConditionPluginCollection $conditionCollection = NULL;
+
+  /**
+   * The condition plugin manager.
+   */
+  private ?ExecutableManagerInterface $conditionPluginManager = NULL;
 
   /**
    * {@inheritdoc}
@@ -110,7 +132,78 @@ class OutboundEndpoint extends ConfigEntityBase implements OutboundEndpointInter
    */
   public function isEnabled(): bool
   {
-    return (bool)$this->status;
+    return (bool) $this->status;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getConditions(): ConditionPluginCollection
+  {
+    if ($this->conditionCollection === NULL) {
+      $this->conditionCollection = new ConditionPluginCollection(
+        $this->conditionPluginManager(),
+        $this->conditions,
+      );
+    }
+
+    return $this->conditionCollection;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getActiveConditions(): array
+  {
+    return array_filter($this->conditions, function (array $value): bool {
+      unset($value['id'], $value['negate'], $value['context_mapping']);
+      return !$this->isArrayEmpty($value);
+    });
+  }
+
+  /**
+   * Recursively checks if an array is empty.
+   *
+   * @param array<mixed> $array
+   *   The array to check.
+   *
+   * @return bool
+   *   TRUE if the array has no meaningful non-empty values.
+   */
+  private function isArrayEmpty(array $array): bool
+  {
+    foreach (NestedArray::filter($array) as $value) {
+      if (!empty($value)) {
+        return FALSE;
+      }
+      if (is_array($value)) {
+        return $this->isArrayEmpty($value);
+      }
+    }
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPluginCollections(): array
+  {
+    return ['conditions' => $this->getConditions()];
+  }
+
+  /**
+   * Gets the condition plugin manager via lazy static resolution.
+   *
+   * @return \Drupal\Core\Executable\ExecutableManagerInterface
+   *   The condition plugin manager.
+   */
+  private function conditionPluginManager(): ExecutableManagerInterface
+  {
+    if ($this->conditionPluginManager === NULL) {
+      $this->conditionPluginManager = \Drupal::service('plugin.manager.condition');
+    }
+
+    return $this->conditionPluginManager;
   }
 
 }

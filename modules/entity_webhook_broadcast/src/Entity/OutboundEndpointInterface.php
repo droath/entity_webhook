@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook_broadcast\Entity;
 
+use Drupal\Core\Condition\ConditionPluginCollection;
 use Drupal\Core\Config\Entity\ConfigEntityInterface;
 
 /**
@@ -46,5 +47,25 @@ interface OutboundEndpointInterface extends ConfigEntityInterface {
    *   TRUE if the endpoint is active.
    */
   public function isEnabled(): bool;
+
+  /**
+   * Returns the condition plugin collection for this endpoint.
+   *
+   * @return \Drupal\Core\Condition\ConditionPluginCollection
+   *   The condition plugin collection.
+   */
+  public function getConditions(): ConditionPluginCollection;
+
+  /**
+   * Returns only the conditions that have been actively configured.
+   *
+   * Filters the raw condition configuration to exclude conditions whose
+   * config consists only of default meta-keys (id, negate, context_mapping)
+   * with no meaningful custom values.
+   *
+   * @return array<string, array<string, mixed>>
+   *   Active condition configurations keyed by plugin ID.
+   */
+  public function getActiveConditions(): array;
 
 }

@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook_broadcast\Service;
 
+use Drupal\Core\Condition\ConditionAccessResolverTrait;
+use Drupal\Core\Condition\ConditionInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Plugin\Context\Context;
+use Drupal\Core\Plugin\Context\EntityContextDefinition;
 use Drupal\entity_webhook_broadcast\Entity\OutboundDeliveryLog;
 use Drupal\entity_webhook_broadcast\Entity\OutboundDeliveryLogInterface;
 use Drupal\entity_webhook_broadcast\Entity\OutboundEndpointInterface;
@@ -23,6 +27,8 @@ use Drupal\entity_webhook_broadcast\Queue\OutboundQueueServiceInterface;
  * enqueued for async delivery.
  */
 class OutboundDispatcher implements OutboundDispatcherInterface {
+
+  use ConditionAccessResolverTrait;
 
   /**
    * Constructs an OutboundDispatcher.
@@ -111,7 +117,78 @@ class OutboundDispatcher implements OutboundDispatcherInterface {
       return FALSE;
     }
 
-    return in_array($event, $endpoint->getEvents(), TRUE);
+    if (!in_array($event, $endpoint->getEvents(), TRUE)) {
+      return FALSE;
+    }
+
+    return $this->evaluateConditions($endpoint, $entity);
+  }
+
+  /**
+   * Evaluates all active conditions on an endpoint against the given entity.
+   *
+   * Returns TRUE immediately when no conditions are actively configured.
+   *
+   * @param \Drupal\entity_webhook_broadcast\Entity\OutboundEndpointInterface $endpoint
+   *   The endpoint whose conditions to evaluate.
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity to evaluate conditions against.
+   *
+   * @return bool
+   *   TRUE if all conditions pass (AND logic), FALSE otherwise.
+   */
+  private function evaluateConditions(OutboundEndpointInterface $endpoint, EntityInterface $entity): bool
+  {
+    $activeConditions = $endpoint->getActiveConditions();
+
+    if ($activeConditions === []) {
+      return TRUE;
+    }
+
+    $context = new Context(
+      EntityContextDefinition::fromEntityType($entity->getEntityType()),
+      $entity,
+    );
+
+    $collection = $endpoint->getConditions();
+    $instances = [];
+
+    foreach (array_keys($activeConditions) as $conditionId) {
+      if ($collection->has($conditionId)) {
+        $condition = $collection->get($conditionId);
+        $this->applyEntityContext($condition, $context);
+        $instances[$conditionId] = $condition;
+      }
+    }
+
+    if ($instances === []) {
+      return TRUE;
+    }
+
+    return $this->resolveConditions($instances, 'and');
+  }
+
+  /**
+   * Sets the entity context on a condition using its declared context keys.
+   *
+   * Condition plugins declare context requirements with varying keys: generic
+   * conditions use 'entity', while entity_bundle derivatives use the entity
+   * type ID (e.g. 'node', 'user'). This method inspects the condition's
+   * context definitions and sets the entity context on every slot that accepts
+   * an entity data type.
+   *
+   * @param \Drupal\Core\Condition\ConditionInterface $condition
+   *   The condition plugin instance.
+   * @param \Drupal\Core\Plugin\Context\Context $context
+   *   The entity context to assign.
+   */
+  private function applyEntityContext(ConditionInterface $condition, Context $context): void {
+    foreach ($condition->getContextDefinitions() as $contextName => $definition) {
+      $dataType = $definition->getDataType();
+      if ($dataType === 'entity' || str_starts_with($dataType, 'entity:')) {
+        $condition->setContext($contextName, $context);
+      }
+    }
   }
 
   /**
