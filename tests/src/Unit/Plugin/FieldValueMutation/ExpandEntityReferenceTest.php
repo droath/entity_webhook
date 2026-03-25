@@ -96,7 +96,7 @@ class ExpandEntityReferenceTest extends UnitTestCase {
 
     $result = $plugin->mutate(42);
 
-    $this->assertSame(['title' => 'Test Node', 'status' => 1], $result);
+    $this->assertSame([['title' => 'Test Node', 'status' => 1]], $result);
   }
 
   /**
@@ -122,7 +122,7 @@ class ExpandEntityReferenceTest extends UnitTestCase {
 
     $result = $plugin->mutate('42');
 
-    $this->assertSame(['title' => 'Test Node'], $result);
+    $this->assertSame([['title' => 'Test Node']], $result);
   }
 
   /**
@@ -210,7 +210,7 @@ class ExpandEntityReferenceTest extends UnitTestCase {
 
     $result = $plugin->mutate(99);
 
-    $this->assertSame(99, $result);
+    $this->assertSame([99], $result);
   }
 
   /**
@@ -231,7 +231,7 @@ class ExpandEntityReferenceTest extends UnitTestCase {
 
     $result = $plugin->mutate(5);
 
-    $this->assertSame(5, $result);
+    $this->assertSame([5], $result);
   }
 
   /**
@@ -320,10 +320,14 @@ class ExpandEntityReferenceTest extends UnitTestCase {
 
     // Assert: field_author is recursively expanded into the user's fields.
     $this->assertSame([
-      'title' => 'Test Article',
-      'field_author' => [
-        'name' => 'John',
-        'mail' => 'john@example.com',
+      [
+        'title' => 'Test Article',
+        'field_author' => [
+          [
+            'name' => 'John',
+            'mail' => 'john@example.com',
+          ],
+        ],
       ],
     ], $result);
   }

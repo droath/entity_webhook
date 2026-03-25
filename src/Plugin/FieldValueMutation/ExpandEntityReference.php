@@ -74,7 +74,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    */
   public function mutate(mixed $value): mixed {
     if (is_int($value) || (is_string($value) && is_numeric($value))) {
-      return $this->expandIds([(int) $value], isSingleValue: TRUE);
+      return $this->expandIds([(int) $value]);
     }
 
     if (is_array($value)) {
@@ -83,7 +83,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
         return $value;
       }
 
-      return $this->expandIds($ids, isSingleValue: FALSE);
+      return $this->expandIds($ids);
     }
 
     return $value;
@@ -172,17 +172,14 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    *
    * @param int[] $ids
    *   The entity IDs to expand.
-   * @param bool $isSingleValue
-   *   Whether the original input was a single ID (returns an object instead of
-   *   an array).
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    *
-   * @return mixed
+   * @return array<mixed>
    *   The expanded entity data.
    */
-  private function expandIds(array $ids, bool $isSingleValue): mixed {
+  private function expandIds(array $ids): array {
     $targetType = $this->configuration['target_type'];
     $storage = $this->entityTypeManager->getStorage($targetType);
     $entities = $storage->loadMultiple($ids);
@@ -196,7 +193,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
         : $id;
     }
 
-    return $isSingleValue ? reset($results) : $results;
+    return $results;
   }
 
   /**
@@ -286,8 +283,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
 
     if ($targetType !== NULL) {
       $ids = array_map(fn (array $item) => (int) $item['target_id'], $values);
-      $isSingle = count($ids) === 1;
-      $expanded = $this->expandReferenceIds($ids, $isSingle, $targetType);
+      $expanded = $this->expandReferenceIds($ids, $targetType);
       if ($expanded !== NULL) {
         return $expanded;
       }
@@ -336,18 +332,16 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
    *
    * @param int[] $ids
    *   The target entity IDs.
-   * @param bool $isSingleValue
-   *   Whether the original field held a single reference.
    * @param string $targetType
    *   The target entity type ID.
    *
    * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    * @throws \Drupal\Component\Plugin\Exception\PluginNotFoundException
    *
-   * @return mixed
+   * @return array<mixed>|null
    *   The expanded data, or NULL when no matching display exists.
    */
-  private function expandReferenceIds(array $ids, bool $isSingleValue, string $targetType): mixed {
+  private function expandReferenceIds(array $ids, string $targetType): ?array {
     $storage = $this->entityTypeManager->getStorage($targetType);
     $entities = $storage->loadMultiple($ids);
 
@@ -369,7 +363,7 @@ class ExpandEntityReference extends FieldValueMutationBase implements ContainerF
       $results[] = $this->expandEntity($entity, $id);
     }
 
-    return $isSingleValue ? reset($results) : $results;
+    return $results;
   }
 
   /**
