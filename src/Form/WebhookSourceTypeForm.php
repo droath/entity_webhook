@@ -177,6 +177,8 @@ class WebhookSourceTypeForm extends EntityForm {
 
     $this->applyVerificationConfig($form_state);
 
+    $entity->set('operation', $form_state->getValue('operation') ?? $entity->getOperation());
+
     $endpoint = $this->resolveEndpoint();
 
     if ($endpoint instanceof WebhookEndpointInterface) {

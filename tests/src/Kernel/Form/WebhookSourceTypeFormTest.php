@@ -316,6 +316,43 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
   }
 
   /**
+   * Tests that save() persists the operation value submitted via the form.
+   */
+  public function testSavePersistsOperationValueFromFormState(): void {
+    $entity = WebhookSourceType::create([
+      'id' => 'delete_source',
+      'label' => 'Delete Source',
+      'operation' => 'upsert',
+      'verification_plugin' => '',
+      'verification_config' => [],
+    ]);
+
+    $form = $this->getForm();
+    $form->setEntity($entity);
+
+    $form_state = new FormState();
+    $form_state->setValue('label', 'Delete Source');
+    $form_state->setValue('id', 'delete_source');
+    $form_state->setValue('operation', 'delete');
+    $form_state->setValue('verification_plugin', '');
+
+    $form_array = $form->buildForm([], $form_state);
+
+    try {
+      $form->save($form_array, $form_state);
+    }
+    catch (UndefinedLinkTemplateException) {
+      // Expected when no endpoint route parameter is present.
+    }
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $saved */
+    $saved = WebhookSourceType::load('delete_source');
+
+    $this->assertNotNull($saved);
+    $this->assertSame('delete', $saved->getOperation());
+  }
+
+  /**
    * Tests that the verification config subform is present in the form when a plugin is selected.
    */
   public function testFormContainsVerificationConfigSubformWhenPluginIsSelected(): void {
