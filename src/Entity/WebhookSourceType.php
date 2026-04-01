@@ -49,6 +49,7 @@ use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
     'id',
     'label',
     'endpoint',
+    'operation',
     'verification_plugin',
     'verification_config',
   ],
@@ -63,6 +64,9 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
   /** The parent endpoint machine name. */
   protected string $endpoint = '';
 
+  /** The entity operation: 'upsert' or 'delete'. */
+  protected string $operation = 'upsert';
+
   /** The verification plugin ID. */
   protected string $verification_plugin = '';
 
@@ -72,6 +76,13 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
    * @var array<string, mixed>
    */
   protected array $verification_config = [];
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getOperation(): string {
+    return $this->operation;
+  }
 
   /**
    * {@inheritdoc}

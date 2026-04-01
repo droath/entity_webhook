@@ -75,6 +75,18 @@ class WebhookSourceTypeForm extends EntityForm {
       $entity,
     );
 
+    $form['operation'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Operation'),
+      '#options' => [
+        'upsert' => $this->t('Upsert (Create or Update)'),
+        'delete' => $this->t('Delete'),
+      ],
+      '#default_value' => $entity->getOperation(),
+      '#description' => $this->t('The entity operation to perform when a webhook payload is received.'),
+      '#required' => TRUE,
+    ];
+
     $form['verification'] = [
       '#type' => 'details',
       '#title' => $this->t('Verification'),

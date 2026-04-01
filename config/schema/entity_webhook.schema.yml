@@ -49,6 +49,9 @@ entity_webhook.webhook_source_type.*:
     endpoint:
       type: string
       label: 'Parent endpoint ID'
+    operation:
+      type: string
+      label: 'Entity operation (upsert or delete)'
     verification_plugin:
       type: string
       label: 'Verification Plugin ID'

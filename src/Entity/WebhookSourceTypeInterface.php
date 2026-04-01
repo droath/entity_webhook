@@ -61,4 +61,12 @@ interface WebhookSourceTypeInterface extends ConfigEntityInterface {
    *   exists.
    */
   public function getEndpoint(): ?WebhookEndpointInterface;
+
+  /**
+   * Returns the entity operation configured for this source type.
+   *
+   * @return string
+   *   The operation: 'upsert' or 'delete'.
+   */
+  public function getOperation(): string;
 }
