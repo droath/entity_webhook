@@ -19,10 +19,14 @@ interface WebhookProcessorInterface {
    *
    * Loads the endpoint and source type config entities, extracts field values
    * from the payload using JSONPath expressions, and upserts the target entity.
-   * Logs a warning and returns without throwing on any recoverable failure.
+   * Returns a result object describing the outcome; never throws on recoverable
+   * failures.
    *
    * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
    *   The queue item to process.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   The processing outcome.
    */
-  public function process(WebhookQueueItem $item): void;
+  public function process(WebhookQueueItem $item): WebhookProcessResult;
 }

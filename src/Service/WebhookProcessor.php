@@ -24,10 +24,10 @@ use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInt
  * Loads WebhookEndpoint and WebhookSourceType config, extracts field values
  * from the payload using pluggable value resolvers and optional mutations,
  * dispatches PreSave/PostSave events, and delegates to EntityUpsertService.
- * Failures are logged and skipped — no exceptions propagate to the caller.
+ * All failures are captured and returned as error results — no exceptions
+ * propagate to the caller.
  */
-class WebhookProcessor implements WebhookProcessorInterface
-{
+class WebhookProcessor implements WebhookProcessorInterface {
   /**
    * Constructs a WebhookProcessor.
    *
@@ -51,36 +51,38 @@ class WebhookProcessor implements WebhookProcessorInterface
     protected readonly EventDispatcherInterface $eventDispatcher,
     protected readonly FieldValueMutationManagerInterface $mutationManager,
     protected readonly ValueResolverManagerInterface $resolverManager,
-  ) {}
+  ) {
+  }
 
   /**
    * {@inheritdoc}
    */
-  public function process(WebhookQueueItem $item): void
-  {
+  public function process(WebhookQueueItem $item): WebhookProcessResult {
     $endpoint = $this->loadEndpoint($item->endpointId);
 
     if ($endpoint === NULL) {
-      return;
+      return WebhookProcessResult::error('Endpoint not found.');
     }
 
     $sourceType = $this->loadSourceType($item->sourceType);
 
     if ($sourceType === NULL) {
-      return;
+      return WebhookProcessResult::error('Source type not found.');
     }
 
-    if (! $this->validateSourceTypeAssociation($endpoint, $item)) {
-      return;
+    if (!$this->validateSourceTypeAssociation($endpoint, $item)) {
+      return WebhookProcessResult::error('Source type is not associated with the endpoint.');
     }
 
     try {
-      match ($sourceType->getOperation()) {
+      return match ($sourceType->getOperation()) {
         'delete' => $this->processDelete($endpoint, $sourceType, $item),
         default => $this->processItem($endpoint, $sourceType, $item),
       };
     } catch (\Throwable $e) {
       $this->logProcessingError($item, $e);
+
+      return WebhookProcessResult::error($e->getMessage());
     }
   }
 
@@ -97,8 +99,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return bool
    *   TRUE when the source type is associated; FALSE otherwise.
    */
-  private function validateSourceTypeAssociation(WebhookEndpointInterface $endpoint, WebhookQueueItem $item): bool
-  {
+  private function validateSourceTypeAssociation(WebhookEndpointInterface $endpoint, WebhookQueueItem $item): bool {
     if ($endpoint->hasSourceType($item->sourceType)) {
       return TRUE;
     }
@@ -126,9 +127,11 @@ class WebhookProcessor implements WebhookProcessorInterface
    *   The loaded source type config entity.
    * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
    *   The queue item being processed.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   The processing outcome.
    */
-  private function processItem(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): void
-  {
+  private function processItem(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): WebhookProcessResult {
     $mappings = $sourceType->getFieldMappings();
     $extractedValues = $this->extractFieldValues($mappings, $item->payload);
 
@@ -149,7 +152,7 @@ class WebhookProcessor implements WebhookProcessorInterface
         ['@endpoint' => $item->endpointId],
       );
 
-      return;
+      return WebhookProcessResult::error('Processing aborted by event subscriber.');
     }
 
     $wasCreated = $entity->isNew();
@@ -161,6 +164,10 @@ class WebhookProcessor implements WebhookProcessorInterface
       '@endpoint' => $item->endpointId,
       '@source' => $item->sourceType,
     ]);
+
+    $operation = $wasCreated ? 'created' : 'updated';
+
+    return WebhookProcessResult::success($operation, $entity);
   }
 
   /**
@@ -178,9 +185,11 @@ class WebhookProcessor implements WebhookProcessorInterface
    *   The queue item being processed.
    *
    * @throws \Drupal\Core\Entity\EntityStorageException
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   The processing outcome.
    */
-  private function processDelete(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): void
-  {
+  private function processDelete(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): WebhookProcessResult {
     $mappings = $sourceType->getFieldMappings();
     $extractedValues = $this->extractFieldValues($mappings, $item->payload);
 
@@ -200,7 +209,15 @@ class WebhookProcessor implements WebhookProcessorInterface
         ],
       );
 
-      return;
+      return new WebhookProcessResult(
+        success: TRUE,
+        operation: 'skipped',
+        entityId: NULL,
+        entityTypeId: NULL,
+        bundle: NULL,
+        label: NULL,
+        error: NULL,
+      );
     }
 
     $entity->delete();
@@ -211,6 +228,8 @@ class WebhookProcessor implements WebhookProcessorInterface
       '@endpoint' => $item->endpointId,
       '@source' => $item->sourceType,
     ]);
+
+    return WebhookProcessResult::success('deleted', $entity);
   }
 
   /**
@@ -224,8 +243,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return \Drupal\entity_webhook\Event\EntityWebhookPreSaveEvent
    *   The dispatched event, possibly modified by subscribers.
    */
-  private function dispatchPreSaveEvent(EntityInterface $entity, WebhookQueueItem $item): EntityWebhookPreSaveEvent
-  {
+  private function dispatchPreSaveEvent(EntityInterface $entity, WebhookQueueItem $item): EntityWebhookPreSaveEvent {
     return $this->eventDispatcher->dispatch(
       new EntityWebhookPreSaveEvent(
         entity: $entity,
@@ -248,8 +266,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @param bool $wasCreated
    *   TRUE if the entity was newly created, FALSE if it was updated.
    */
-  private function dispatchPostSaveEvent(EntityInterface $entity, WebhookQueueItem $item, bool $wasCreated): void
-  {
+  private function dispatchPostSaveEvent(EntityInterface $entity, WebhookQueueItem $item, bool $wasCreated): void {
     $this->eventDispatcher->dispatch(
       new EntityWebhookPostSaveEvent(
         entity: $entity,
@@ -270,8 +287,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @param \Throwable $e
    *   The caught exception or error.
    */
-  private function logProcessingError(WebhookQueueItem $item, \Throwable $e): void
-  {
+  private function logProcessingError(WebhookQueueItem $item, \Throwable $e): void {
     $this->logger->error('Failed to process webhook item for endpoint @endpoint: @message', [
       '@endpoint' => $item->endpointId,
       '@message' => $e->getMessage(),
@@ -287,8 +303,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return \Drupal\entity_webhook\Entity\WebhookEndpointInterface|null
    *   The loaded endpoint, or NULL.
    */
-  private function loadEndpoint(string $endpointId): ?WebhookEndpointInterface
-  {
+  private function loadEndpoint(string $endpointId): ?WebhookEndpointInterface {
     $endpoint = $this->validator->loadEndpoint($endpointId);
 
     if ($endpoint === NULL) {
@@ -312,8 +327,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface|null
    *   The loaded source type, or NULL.
    */
-  private function loadSourceType(string $sourceTypeId): ?WebhookSourceTypeInterface
-  {
+  private function loadSourceType(string $sourceTypeId): ?WebhookSourceTypeInterface {
     $sourceType = $this->validator->loadSourceType($sourceTypeId);
 
     if ($sourceType === NULL) {
@@ -343,8 +357,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return array<string, mixed>
    *   Extracted values keyed by entity field machine name.
    */
-  private function extractFieldValues(array $mappings, array $payload): array
-  {
+  private function extractFieldValues(array $mappings, array $payload): array {
     $values = [];
 
     foreach ($mappings as $mapping) {
@@ -370,8 +383,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    * @return mixed
    *   The resolved value, or NULL on failure.
    */
-  private function resolveValue(FieldMapping $mapping, array $payload): mixed
-  {
+  private function resolveValue(FieldMapping $mapping, array $payload): mixed {
     try {
       $resolver = $this->resolverManager->createInstance(
         $mapping->resolver,
@@ -409,8 +421,7 @@ class WebhookProcessor implements WebhookProcessorInterface
    *   The mutated value, or the original value when no mutation is configured
    *   or when mutation fails.
    */
-  private function applyMutation(FieldMapping $mapping, mixed $value): mixed
-  {
+  private function applyMutation(FieldMapping $mapping, mixed $value): mixed {
     if ($mapping->mutationPlugin === '') {
       return $value;
     }

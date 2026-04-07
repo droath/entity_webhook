@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
+use Drupal\entity_webhook\Service\WebhookProcessorInterface;
 use Drupal\entity_webhook\Queue\WebhookQueueServiceInterface;
 use Drupal\entity_webhook\Service\VerificationChainInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -21,8 +22,9 @@ use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerI
  * Handles incoming webhook HTTP POST requests.
  *
  * Validates the request synchronously (JSON parsing, entity existence,
- * verification plugin checks), then enqueues the payload for asynchronous
- * entity upsert processing. Returns immediate feedback via HTTP status codes.
+ * verification plugin checks), then either processes the payload immediately
+ * (sync mode) or enqueues it for asynchronous processing (async mode).
+ * Returns immediate feedback via HTTP status codes.
  */
 class WebhookController extends ControllerBase {
   /**
@@ -38,6 +40,8 @@ class WebhookController extends ControllerBase {
    *   The verification chain service.
    * @param \Drupal\Core\Logger\LoggerChannelInterface $logger
    *   The logger channel for entity_webhook.
+   * @param \Drupal\entity_webhook\Service\WebhookProcessorInterface $processor
+   *   The webhook processor service for synchronous processing.
    */
   public function __construct(
     protected readonly WebhookRequestValidatorInterface $validator,
@@ -45,6 +49,7 @@ class WebhookController extends ControllerBase {
     protected readonly WebhookVerificationManagerInterface $verificationManager,
     protected readonly VerificationChainInterface $verificationChain,
     protected readonly LoggerChannelInterface $logger,
+    protected readonly WebhookProcessorInterface $processor,
   ) {
   }
 
@@ -58,11 +63,12 @@ class WebhookController extends ControllerBase {
       $container->get('plugin.manager.webhook_verification'),
       $container->get('entity_webhook.verification_chain'),
       $container->get('logger.channel.entity_webhook'),
+      $container->get('entity_webhook.webhook_processor'),
     );
   }
 
   /**
-   * Receives a webhook POST request, validates it, and enqueues the payload.
+   * Receives a webhook POST request, validates it, and processes or queues it.
    *
    * @param \Symfony\Component\HttpFoundation\Request $request
    *   The incoming HTTP request.
@@ -72,8 +78,9 @@ class WebhookController extends ControllerBase {
    *   The WebhookSourceType machine name from the route parameter.
    *
    * @return \Symfony\Component\HttpFoundation\Response
-   *   200 on success, 400 on invalid JSON, 403 on verification failure,
-   *   404 on unknown endpoint/source.
+   *   200 on success (sync: result data, async: queued status),
+   *   400 on invalid JSON, 403 on verification failure,
+   *   404 on unknown endpoint/source, 422 on sync processing failure.
    */
   public function receive(
     Request $request,
@@ -86,6 +93,7 @@ class WebhookController extends ControllerBase {
       'Webhook received for endpoint @endpoint, source @source.',
       $logContext,
     );
+
     $payload = $this->loadOrFail(
       fn () => $this->validator->parsePayload($request),
       'Invalid JSON payload.',
@@ -135,13 +143,65 @@ class WebhookController extends ControllerBase {
       );
     }
 
-    $this->queueService->enqueue(new WebhookQueueItem(
+    $item = new WebhookQueueItem(
       endpointId: $endpoint_name,
       sourceType: $source_type,
       payload: $payload,
       receivedAt: new \DateTimeImmutable(),
       source: 'webhook',
-    ));
+    );
+
+    if ($endpoint->isSync()) {
+      return $this->processSynchronously($item, $logContext);
+    }
+
+    return $this->enqueueAsynchronously($item, $logContext);
+  }
+
+  /**
+   * Processes the item synchronously and returns the result as a response.
+   *
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item to process immediately.
+   * @param array<string, string> $logContext
+   *   Log context for endpoint/source logging.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   200 with result data on success, 422 with error on failure.
+   */
+  private function processSynchronously(WebhookQueueItem $item, array $logContext): JsonResponse {
+    $result = $this->processor->process($item);
+
+    if ($result->success) {
+      $this->logger->info(
+        'Webhook processed synchronously for endpoint @endpoint, source @source.',
+        $logContext,
+      );
+
+      return new JsonResponse($result->toResponseArray(), Response::HTTP_OK);
+    }
+
+    $this->logger->warning(
+      'Synchronous webhook processing failed for endpoint @endpoint, source @source.',
+      $logContext,
+    );
+
+    return new JsonResponse($result->toResponseArray(), Response::HTTP_UNPROCESSABLE_ENTITY);
+  }
+
+  /**
+   * Enqueues the item for asynchronous processing and returns immediately.
+   *
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item to enqueue.
+   * @param array<string, string> $logContext
+   *   Log context for endpoint/source logging.
+   *
+   * @return \Symfony\Component\HttpFoundation\JsonResponse
+   *   200 with queued status.
+   */
+  private function enqueueAsynchronously(WebhookQueueItem $item, array $logContext): JsonResponse {
+    $this->queueService->enqueue($item);
 
     $this->logger->info(
       'Webhook payload queued for endpoint @endpoint, source @source.',

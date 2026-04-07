@@ -77,7 +77,7 @@ class WebhookEndpointForm extends EntityForm {
       $entity->getTargetEntityTypeId(),
     );
 
-    if (!empty($selectedEntityType)) {
+    if (! empty($selectedEntityType)) {
       $bundleOptions = $this->getBundleOptions($selectedEntityType);
       $selectedBundle = $this->getFormStateValue(
         'target_entity_bundle',
@@ -96,6 +96,21 @@ class WebhookEndpointForm extends EntityForm {
         '#default_value' => $selectedBundle,
       ];
     }
+
+    $form['processing_mode'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Processing Mode'),
+      '#description' => $this->t(
+        'Asynchronous mode queues the payload for background processing and returns immediately.
+        <br/> Synchronous mode processes the payload during the request and returns the result directly — useful for integrations that require immediate confirmation.',
+      ),
+      '#options' => [
+        'async' => $this->t('Asynchronous (queued)'),
+        'sync' => $this->t('Synchronous (real-time)'),
+      ],
+      '#default_value' => $entity->getProcessingMode(),
+      '#required' => TRUE,
+    ];
 
     return $form;
   }

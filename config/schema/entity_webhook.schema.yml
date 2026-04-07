@@ -84,3 +84,6 @@ entity_webhook.webhook_endpoint.*:
       sequence:
         type: string
         label: 'Source Type ID'
+    processing_mode:
+      type: string
+      label: 'Processing mode'

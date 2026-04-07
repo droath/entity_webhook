@@ -20,73 +20,49 @@ use Drupal\Tests\UnitTestCase;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
- * Unit tests for delete operation routing in WebhookProcessor.
+ * Unit tests verifying WebhookProcessor returns WebhookProcessResult values.
  *
  * @coversDefaultClass \Drupal\entity_webhook\Service\WebhookProcessor
  * @group entity_webhook
  */
-class WebhookProcessorDeleteTest extends UnitTestCase {
+class WebhookProcessorResultTest extends UnitTestCase {
 
   /**
-   * Tests that process() routes to delete path when operation is 'delete'.
-   *
-   * Verifies that entity->delete() is called, the upsert path is not invoked,
-   * and a 'deleted' success result is returned.
+   * Tests that process() returns an error result when the endpoint is missing.
    *
    * @covers ::process
    */
-  public function testProcessRoutesToDeleteWhenOperationIsDelete(): void {
+  public function testProcessReturnsErrorWhenEndpointNotFound(): void {
     // Arrange
-    $entity = $this->createMock(EntityInterface::class);
-    $entity->method('isNew')->willReturn(FALSE);
-    $entity->method('getEntityTypeId')->willReturn('node');
-    $entity->method('id')->willReturn('42');
-    $entity->method('bundle')->willReturn('article');
-    $entity->method('label')->willReturn('Test Node');
-    $entity->expects($this->once())->method('delete');
-    $entity->expects($this->never())->method('save');
+    $validator = $this->createMock(WebhookRequestValidatorInterface::class);
+    $validator->method('loadEndpoint')->willReturn(NULL);
 
-    $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
-    $entityUpsert->method('resolveEntity')->willReturn($entity);
-    $entityUpsert->expects($this->never())->method('applyFieldValues');
-
-    $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
-    $eventDispatcher->expects($this->never())->method('dispatch');
-
-    $processor = $this->buildProcessor(
-      operation: 'delete',
-      entityUpsert: $entityUpsert,
-      eventDispatcher: $eventDispatcher,
-    );
+    $processor = $this->buildProcessorWithValidator($validator);
 
     // Act
     $result = $processor->process($this->buildQueueItem());
 
     // Assert
-    $this->assertTrue($result->success);
-    $this->assertSame('deleted', $result->operation);
+    $this->assertFalse($result->success);
+    $this->assertNotNull($result->error);
   }
 
   /**
-   * Tests that process() routes to the upsert path when operation is 'upsert'.
-   *
-   * Verifies that applyFieldValues() is called, entity->delete() is never
-   * invoked, and a success result is returned.
+   * Tests that process() returns a success result with 'created' on new entity.
    *
    * @covers ::process
    */
-  public function testProcessRoutesToUpsertWhenOperationIsUpsert(): void {
+  public function testProcessReturnsCreatedResultForNewEntity(): void {
     // Arrange
     $entity = $this->createMock(EntityInterface::class);
-    $entity->method('isNew')->willReturn(FALSE);
-    $entity->method('id')->willReturn('3');
+    $entity->method('isNew')->willReturn(TRUE);
+    $entity->method('id')->willReturn('1');
     $entity->method('getEntityTypeId')->willReturn('node');
     $entity->method('bundle')->willReturn('article');
-    $entity->method('label')->willReturn('An Article');
+    $entity->method('label')->willReturn('New Node');
 
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
     $entityUpsert->method('resolveEntity')->willReturn($entity);
-    $entityUpsert->expects($this->once())->method('applyFieldValues');
 
     $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
     $eventDispatcher->method('dispatch')->willReturnArgument(0);
@@ -100,36 +76,61 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
     // Act
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert — delete is never called and result reflects updated entity
+    // Assert
+    $this->assertTrue($result->success);
+    $this->assertSame('created', $result->operation);
+  }
+
+  /**
+   * Tests that process() returns a success result with 'updated' for existing entity.
+   *
+   * @covers ::process
+   */
+  public function testProcessReturnsUpdatedResultForExistingEntity(): void {
+    // Arrange
+    $entity = $this->createMock(EntityInterface::class);
+    $entity->method('isNew')->willReturn(FALSE);
+    $entity->method('id')->willReturn('5');
+    $entity->method('getEntityTypeId')->willReturn('node');
+    $entity->method('bundle')->willReturn('article');
+    $entity->method('label')->willReturn('Existing Node');
+
+    $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
+    $entityUpsert->method('resolveEntity')->willReturn($entity);
+
+    $eventDispatcher = $this->createMock(EventDispatcherInterface::class);
+    $eventDispatcher->method('dispatch')->willReturnArgument(0);
+
+    $processor = $this->buildProcessor(
+      operation: 'upsert',
+      entityUpsert: $entityUpsert,
+      eventDispatcher: $eventDispatcher,
+    );
+
+    // Act
+    $result = $processor->process($this->buildQueueItem());
+
+    // Assert
     $this->assertTrue($result->success);
     $this->assertSame('updated', $result->operation);
   }
 
   /**
-   * Tests that processDelete() is a no-op when the entity does not exist.
-   *
-   * When resolveEntity() returns an entity where isNew() is TRUE, the entity
-   * was not found in storage. The delete is skipped, info is logged, and
-   * a 'skipped' success result is returned.
+   * Tests that process() returns a skipped result when delete target not found.
    *
    * @covers ::process
    */
-  public function testProcessDeleteSkipsWhenEntityNotFound(): void {
+  public function testProcessReturnsSkippedWhenDeleteTargetNotFound(): void {
     // Arrange
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(TRUE);
-    $entity->expects($this->never())->method('delete');
 
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
     $entityUpsert->method('resolveEntity')->willReturn($entity);
 
-    $logger = $this->createMock(LoggerChannelInterface::class);
-    $logger->expects($this->atLeastOnce())->method('info');
-
     $processor = $this->buildProcessor(
       operation: 'delete',
       entityUpsert: $entityUpsert,
-      logger: $logger,
     );
 
     // Act
@@ -141,33 +142,26 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
   }
 
   /**
-   * Tests that processDelete() deletes an existing entity and returns a deleted result.
-   *
-   * When resolveEntity() returns an entity where isNew() is FALSE, the entity
-   * exists in storage, must be deleted, and a 'deleted' success result is returned.
+   * Tests that process() returns a deleted result when entity is found and deleted.
    *
    * @covers ::process
    */
-  public function testProcessDeleteDeletesExistingEntityAndReturnsDeletedResult(): void {
+  public function testProcessReturnsDeletedResultWhenEntityDeleted(): void {
     // Arrange
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
+    $entity->method('id')->willReturn('9');
     $entity->method('getEntityTypeId')->willReturn('node');
-    $entity->method('id')->willReturn('7');
     $entity->method('bundle')->willReturn('article');
-    $entity->method('label')->willReturn('Old Article');
+    $entity->method('label')->willReturn('Deleted Node');
     $entity->expects($this->once())->method('delete');
 
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
     $entityUpsert->method('resolveEntity')->willReturn($entity);
 
-    $logger = $this->createMock(LoggerChannelInterface::class);
-    $logger->expects($this->atLeastOnce())->method('info');
-
     $processor = $this->buildProcessor(
       operation: 'delete',
       entityUpsert: $entityUpsert,
-      logger: $logger,
     );
 
     // Act
@@ -179,6 +173,26 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
   }
 
   /**
+   * Builds a WebhookProcessor with a custom validator stub.
+   *
+   * @param \Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface $validator
+   *   The validator to use.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessor
+   *   The processor under test.
+   */
+  private function buildProcessorWithValidator(WebhookRequestValidatorInterface $validator): WebhookProcessor {
+    return new WebhookProcessor(
+      validator: $validator,
+      entityUpsert: $this->createMock(EntityUpsertServiceInterface::class),
+      logger: $this->createMock(LoggerChannelInterface::class),
+      eventDispatcher: $this->createMock(EventDispatcherInterface::class),
+      mutationManager: $this->createMock(FieldValueMutationManagerInterface::class),
+      resolverManager: $this->createMock(ValueResolverManagerInterface::class),
+    );
+  }
+
+  /**
    * Builds a WebhookProcessor with controlled collaborator doubles.
    *
    * @param string $operation
@@ -187,8 +201,6 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
    *   The entity upsert mock.
    * @param \Symfony\Contracts\EventDispatcher\EventDispatcherInterface|null $eventDispatcher
    *   Optional event dispatcher mock; a permissive stub is used when NULL.
-   * @param \Drupal\Core\Logger\LoggerChannelInterface|null $logger
-   *   Optional logger mock; a silent stub is used when NULL.
    *
    * @return \Drupal\entity_webhook\Service\WebhookProcessor
    *   The configured processor under test.
@@ -197,7 +209,6 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
     string $operation,
     EntityUpsertServiceInterface $entityUpsert,
     ?EventDispatcherInterface $eventDispatcher = NULL,
-    ?LoggerChannelInterface $logger = NULL,
   ): WebhookProcessor {
     $mapping = new FieldMapping(
       entityField: 'title',
@@ -233,7 +244,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
     return new WebhookProcessor(
       validator: $validator,
       entityUpsert: $entityUpsert,
-      logger: $logger ?? $this->createMock(LoggerChannelInterface::class),
+      logger: $this->createMock(LoggerChannelInterface::class),
       eventDispatcher: $eventDispatcher ?? $defaultEventDispatcher,
       mutationManager: $mutationManager,
       resolverManager: $resolverManager,

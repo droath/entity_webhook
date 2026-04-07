@@ -229,4 +229,86 @@ class WebhookEndpointTest extends KernelTestBase {
     $this->assertContains('source_a', $endpoint->getSourceTypeIds());
   }
 
+  /**
+   * Tests that processing_mode defaults to 'async' when not explicitly set.
+   */
+  public function testProcessingModeDefaultsToAsync(): void {
+    // Arrange + Act
+    WebhookEndpoint::create([
+      'id' => 'default_mode_endpoint',
+      'label' => 'Default Mode Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => [],
+    ])->save();
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('default_mode_endpoint');
+
+    // Assert
+    $this->assertSame('async', $loaded->getProcessingMode());
+  }
+
+  /**
+   * Tests that processing_mode 'sync' is saved and reloaded correctly.
+   */
+  public function testProcessingModeCanBeSetToSyncAndPersists(): void {
+    // Arrange
+    WebhookEndpoint::create([
+      'id' => 'sync_mode_endpoint',
+      'label' => 'Sync Mode Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => [],
+      'processing_mode' => 'sync',
+    ])->save();
+
+    // Act
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('sync_mode_endpoint');
+
+    // Assert
+    $this->assertSame('sync', $loaded->getProcessingMode());
+  }
+
+  /**
+   * Tests that isSync() returns TRUE when processing_mode is 'sync'.
+   */
+  public function testIsSyncReturnsTrueForSyncMode(): void {
+    // Arrange
+    WebhookEndpoint::create([
+      'id' => 'is_sync_endpoint',
+      'label' => 'Is Sync Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => [],
+      'processing_mode' => 'sync',
+    ])->save();
+
+    // Act
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('is_sync_endpoint');
+
+    // Assert
+    $this->assertTrue($loaded->isSync());
+  }
+
+  /**
+   * Tests that isSync() returns FALSE when processing_mode is 'async'.
+   */
+  public function testIsSyncReturnsFalseForAsyncMode(): void {
+    // Arrange
+    WebhookEndpoint::create([
+      'id' => 'is_async_endpoint',
+      'label' => 'Is Async Endpoint',
+      'target_entity_type' => 'node',
+      'source_types' => [],
+      'processing_mode' => 'async',
+    ])->save();
+
+    // Act
+    /** @var \Drupal\entity_webhook\Entity\WebhookEndpointInterface $loaded */
+    $loaded = WebhookEndpoint::load('is_async_endpoint');
+
+    // Assert
+    $this->assertFalse($loaded->isSync());
+  }
+
 }

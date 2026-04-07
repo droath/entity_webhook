@@ -55,6 +55,7 @@ use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
     'target_entity_type',
     'target_entity_bundle',
     'source_types',
+    'processing_mode',
   ],
 )]
 class WebhookEndpoint extends ConfigEntityBase implements WebhookEndpointInterface {
@@ -76,6 +77,9 @@ class WebhookEndpoint extends ConfigEntityBase implements WebhookEndpointInterfa
    * @var string[]
    */
   protected array $source_types = [];
+
+  /** The processing mode: 'async' (queued) or 'sync' (real-time). */
+  protected string $processing_mode = 'async';
 
   /**
    * {@inheritdoc}
@@ -126,5 +130,19 @@ class WebhookEndpoint extends ConfigEntityBase implements WebhookEndpointInterfa
     ));
 
     return $this;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getProcessingMode(): string {
+    return $this->processing_mode;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isSync(): bool {
+    return $this->processing_mode === 'sync';
   }
 }

@@ -63,4 +63,20 @@ interface WebhookEndpointInterface extends ConfigEntityInterface {
    *   The source type machine name.
    */
   public function removeSourceType(string $sourceTypeId): static;
+
+  /**
+   * Returns the processing mode for this endpoint.
+   *
+   * @return string
+   *   Either 'async' (queued) or 'sync' (real-time).
+   */
+  public function getProcessingMode(): string;
+
+  /**
+   * Returns whether this endpoint processes webhooks synchronously.
+   *
+   * @return bool
+   *   TRUE for synchronous (real-time) processing, FALSE for asynchronous.
+   */
+  public function isSync(): bool;
 }
