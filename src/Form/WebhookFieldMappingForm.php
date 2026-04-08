@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\entity_webhook\Form;
 
+use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
+use Drupal\entity_webhook\Entity\WebhookFieldMapping;
 use Drupal\Core\Url;
 use Drupal\Core\Entity\EntityForm;
 use Drupal\Core\Form\SubformState;
@@ -109,7 +111,7 @@ class WebhookFieldMappingForm extends EntityForm {
       '#type' => 'machine_name',
       '#default_value' => $this->resolveRawId($entity->id(), $sourceTypeId),
       '#machine_name' => [
-        'exists' => '\Drupal\entity_webhook\Entity\WebhookFieldMapping::load',
+        'exists' => [static::class, 'fieldMappingExists'],
         'replace_pattern' => '[^a-z0-9_.]+',
         'source' => ['label'],
       ],
@@ -218,6 +220,16 @@ class WebhookFieldMappingForm extends EntityForm {
    */
   public function validateForm(array &$form, FormStateInterface $form_state): void {
     parent::validateForm($form, $form_state);
+
+    $sourceType = $this->resolveSourceType();
+    $sourceTypeId = $sourceType?->id() ?? '';
+
+    if ($this->entity->isNew() && $sourceTypeId !== '') {
+      $rawId = $form_state->getValue('id');
+      $fullId = $sourceTypeId . '.' . $rawId;
+      $form_state->setValueForElement($form['id'], $fullId);
+    }
+
     $this->validateResolverPluginForm($form, $form_state);
     $this->validateMutationPluginForm($form, $form_state);
   }
@@ -242,9 +254,10 @@ class WebhookFieldMappingForm extends EntityForm {
     $sourceTypeId = $sourceType?->id() ?? '';
 
     if ($entity->isNew() && $sourceTypeId !== '') {
-      $rawId = $form_state->getValue('id');
-      $entity->set('id', $sourceTypeId . '.' . $rawId);
       $entity->set('source_type', $sourceTypeId);
+    }
+    elseif (!$entity->isNew()) {
+      $entity->set('id', $entity->getOriginalId());
     }
 
     $status = parent::save($form, $form_state);
@@ -267,16 +280,40 @@ class WebhookFieldMappingForm extends EntityForm {
   }
 
   /**
+   * Checks whether a field mapping with the composite ID already exists.
+   *
+   * The #machine_name element passes only the raw value typed by the user.
+   * This callback reconstructs the full composite ID by prepending the source
+   * type prefix stored in #field_prefix before performing the existence check.
+   *
+   * @param string $value
+   *   The raw machine name entered by the user (e.g. 'source').
+   * @param array<string, mixed> $element
+   *   The #machine_name form element, which carries #field_prefix.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @return bool
+   *   TRUE when an entity with the composite ID already exists.
+   */
+  public static function fieldMappingExists(string $value, array $element, FormStateInterface $form_state): bool {
+    $prefix = rtrim((string) ($element['#field_prefix'] ?? ''), '.');
+    $fullId = $prefix !== '' ? $prefix . '.' . $value : $value;
+
+    return (bool) WebhookFieldMapping::load($fullId);
+  }
+
+  /**
    * Resolves the parent WebhookSourceType from the current route parameter.
    *
    * @return \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface|null
    *   The resolved source type, or NULL if the route does not carry one.
    */
-  protected function resolveSourceType(): ?\Drupal\entity_webhook\Entity\WebhookSourceTypeInterface {
+  protected function resolveSourceType(): ?WebhookSourceTypeInterface {
     $sourceType = $this->routeMatch->getParameter('webhook_source_type');
 
-    return $sourceType instanceof \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface
-      ? $sourceType
+    return $sourceType instanceof
+    WebhookSourceTypeInterface ? $sourceType
       : NULL;
   }
 
@@ -552,4 +589,5 @@ class WebhookFieldMappingForm extends EntityForm {
       $form_state->setValue('mutation_config', $plugin->getConfiguration());
     }
   }
+
 }
