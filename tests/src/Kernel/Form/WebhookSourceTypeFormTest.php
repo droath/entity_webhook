@@ -353,6 +353,99 @@ class WebhookSourceTypeFormTest extends KernelTestBase {
   }
 
   /**
+   * Tests that the payload_processing fieldset is present in the built form.
+   */
+  public function testFormContainsPayloadProcessingFieldset(): void {
+    $entity = WebhookSourceType::create([
+      'id' => '',
+      'label' => '',
+      'verification_plugin' => '',
+      'verification_config' => [],
+    ]);
+
+    $form = $this->getForm();
+    $form->setEntity($entity);
+
+    $form_state = new FormState();
+    $built = $form->buildForm([], $form_state);
+
+    $this->assertArrayHasKey('payload_processing', $built);
+    $this->assertArrayHasKey('payload_processor', $built['payload_processing']);
+    $this->assertSame('select', $built['payload_processing']['payload_processor']['#type']);
+  }
+
+  /**
+   * Tests that the payload_processor dropdown includes the bundled array_iterator plugin.
+   */
+  public function testPayloadProcessorDropdownContainsBundledPlugin(): void {
+    $entity = WebhookSourceType::create([
+      'id' => '',
+      'label' => '',
+      'verification_plugin' => '',
+      'verification_config' => [],
+    ]);
+
+    $form = $this->getForm();
+    $form->setEntity($entity);
+
+    $form_state = new FormState();
+    $built = $form->buildForm([], $form_state);
+
+    $options = $built['payload_processing']['payload_processor']['#options'];
+
+    $this->assertArrayHasKey('array_iterator', $options);
+  }
+
+  /**
+   * Tests that save() persists payload processor values entered via the form.
+   */
+  public function testSaveStoresPayloadProcessorConfigValuesFromSubform(): void {
+    $entity = WebhookSourceType::create([
+      'id' => 'array_iter_source',
+      'label' => 'Array Iter Source',
+      'verification_plugin' => '',
+      'verification_config' => [],
+      'payload_processor' => 'array_iterator',
+      'payload_processor_config' => [],
+    ]);
+
+    $form = $this->getForm();
+    $form->setEntity($entity);
+
+    $form_state = new FormState();
+    $form_state->setValue('label', 'Array Iter Source');
+    $form_state->setValue('id', 'array_iter_source');
+    $form_state->setValue('verification_plugin', '');
+    $form_state->setValue('payload_processor', 'array_iterator');
+    $form_state->setValue('payload_processor_config', [
+      'path' => '$.addresses',
+      'merge_from_root' => ['email'],
+    ]);
+
+    $form_array = $form->buildForm([], $form_state);
+
+    $form_array['#parents'] = [];
+    $form_array['payload_processing']['payload_processor_config']['#parents'] = ['payload_processor_config'];
+
+    $form->submitForm($form_array, $form_state);
+
+    try {
+      $form->save($form_array, $form_state);
+    }
+    catch (UndefinedLinkTemplateException) {
+      // Expected when no endpoint route parameter is present.
+    }
+
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $saved */
+    $saved = WebhookSourceType::load('array_iter_source');
+
+    $this->assertNotNull($saved);
+    $this->assertSame('array_iterator', $saved->getPayloadProcessor());
+    $config = $saved->getPayloadProcessorConfig();
+    $this->assertSame('$.addresses', $config['path']);
+  }
+
+  /**
    * Tests that the verification config subform is present in the form when a plugin is selected.
    */
   public function testFormContainsVerificationConfigSubformWhenPluginIsSelected(): void {

@@ -69,4 +69,20 @@ interface WebhookSourceTypeInterface extends ConfigEntityInterface {
    *   The operation: 'upsert' or 'delete'.
    */
   public function getOperation(): string;
+
+  /**
+   * Returns the payload processor plugin ID configured for this source type.
+   *
+   * @return string
+   *   The plugin ID, or an empty string if no processor is configured.
+   */
+  public function getPayloadProcessor(): string;
+
+  /**
+   * Returns the payload processor plugin configuration.
+   *
+   * @return array<string, mixed>
+   *   Plugin configuration keyed by plugin config key.
+   */
+  public function getPayloadProcessorConfig(): array;
 }

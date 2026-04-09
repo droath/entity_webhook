@@ -16,6 +16,8 @@ use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManagerInterface;
 
 /**
  * Provides the add/edit form for WebhookSourceType config entities.
@@ -36,19 +38,31 @@ class WebhookSourceTypeForm extends EntityForm {
   protected WebhookVerificationManagerInterface $verificationManager;
 
   /**
+   * The webhook payload processor plugin manager.
+   *
+   * Not readonly because DependencySerializationTrait::__wakeup() must
+   * re-inject this property after the form is unserialized during AJAX.
+   */
+  protected WebhookPayloadProcessorManagerInterface $payloadProcessorManager;
+
+  /**
    * Constructs a WebhookSourceTypeForm.
    *
    * @param \Drupal\Core\Routing\RouteMatchInterface $routeMatch
    *   The current route match.
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface $verificationManager
    *   The webhook verification plugin manager.
+   * @param \Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManagerInterface $payloadProcessorManager
+   *   The webhook payload processor plugin manager.
    */
   public function __construct(
     RouteMatchInterface $routeMatch,
     WebhookVerificationManagerInterface $verificationManager,
+    WebhookPayloadProcessorManagerInterface $payloadProcessorManager,
   ) {
     $this->routeMatch = $routeMatch;
     $this->verificationManager = $verificationManager;
+    $this->payloadProcessorManager = $payloadProcessorManager;
   }
 
   /**
@@ -58,6 +72,7 @@ class WebhookSourceTypeForm extends EntityForm {
     return new static(
       $container->get('current_route_match'),
       $container->get('plugin.manager.webhook_verification'),
+      $container->get('plugin.manager.webhook_payload_processor'),
     );
   }
 
@@ -134,6 +149,56 @@ class WebhookSourceTypeForm extends EntityForm {
       }
     }
 
+    $selectedProcessor = $this->resolveSelectedPayloadProcessor($form_state);
+
+    $form['payload_processing'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Payload Processing'),
+      '#open' => $entity->getPayloadProcessor() !== '',
+    ];
+
+    $form['payload_processing']['payload_processor'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Payload Processor'),
+      '#options' => $this->payloadProcessorManager->getOptions(),
+      '#default_value' => $entity->getPayloadProcessor(),
+      '#empty_option' => $this->t('- None -'),
+      '#empty_value' => '',
+      '#description' => $this->t('The payload processor plugin to use for incoming payloads. Leave empty to pass the raw payload directly to field mapping.'),
+      '#ajax' => [
+        'wrapper' => 'payload-processor-config-wrapper',
+        'callback' => [$this, 'ajaxUpdatePayloadProcessorConfig'],
+      ],
+    ];
+
+    $form['payload_processing']['payload_processor_config'] = [
+      '#type' => 'container',
+      '#tree' => TRUE,
+      '#prefix' => '<div id="payload-processor-config-wrapper">',
+      '#suffix' => '</div>',
+    ];
+
+    if ($selectedProcessor !== NULL && $selectedProcessor !== '') {
+      $existingProcessorConfig = $entity->getPayloadProcessorConfig();
+      $processorPlugin = $this->payloadProcessorManager->createInstance(
+        $selectedProcessor,
+        $existingProcessorConfig,
+      );
+
+      if ($processorPlugin instanceof PluginFormInterface) {
+        $subform = ['#parents' => ['payload_processor_config']];
+        $subformState = SubformState::createForSubform(
+          $subform,
+          $form,
+          $form_state,
+        );
+        $form['payload_processing']['payload_processor_config'] += $processorPlugin->buildConfigurationForm(
+          $subform,
+          $subformState,
+        );
+      }
+    }
+
     return $form;
   }
 
@@ -153,11 +218,27 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
+   * AJAX callback that returns the payload_processor_config container element.
+   *
+   * @param array<string, mixed> $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array<string, mixed>
+   *   The payload processor config container element.
+   */
+  public function ajaxUpdatePayloadProcessorConfig(array &$form, FormStateInterface $form_state): array {
+    return $form['payload_processing']['payload_processor_config'];
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function validateForm(array &$form, FormStateInterface $form_state): void {
     parent::validateForm($form, $form_state);
     $this->validatePluginConfigurationForm($form, $form_state);
+    $this->validatePayloadProcessorConfigurationForm($form, $form_state);
   }
 
   /**
@@ -165,6 +246,7 @@ class WebhookSourceTypeForm extends EntityForm {
    */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     $this->submitPluginConfigurationForm($form, $form_state);
+    $this->submitPayloadProcessorConfigurationForm($form, $form_state);
     parent::submitForm($form, $form_state);
   }
 
@@ -176,6 +258,7 @@ class WebhookSourceTypeForm extends EntityForm {
     $entity = $this->entity;
 
     $this->applyVerificationConfig($form_state);
+    $this->applyPayloadProcessorConfig($form_state);
 
     $entity->set('operation', $form_state->getValue('operation') ?? $entity->getOperation());
 
@@ -245,8 +328,7 @@ class WebhookSourceTypeForm extends EntityForm {
   }
 
   /**
-   * Resolves the selected verification plugin ID across all form lifecycle
-   * phases.
+   * Resolves the selected verification plugin ID across all form lifecycle phases.
    *
    * Delegates to AjaxFormStateTrait::getFormStateValue() which checks user
    * input first for AJAX rebuilds, then form state values. Falls back to the
@@ -397,5 +479,159 @@ class WebhookSourceTypeForm extends EntityForm {
 
     $config = $form_state->getValue(['verification_config']) ?? [];
     $entity->set('verification_config', $config);
+  }
+
+  /**
+   * Resolves the selected payload processor plugin ID across all form lifecycle phases.
+   *
+   * Delegates to AjaxFormStateTrait::getFormStateValue() which checks user
+   * input first for AJAX rebuilds, then form state values. Falls back to the
+   * entity's stored plugin ID when neither source has a value.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @return string|null
+   *   The plugin ID, or NULL if no plugin is selected.
+   */
+  protected function resolveSelectedPayloadProcessor(
+    FormStateInterface $form_state,
+  ): ?string {
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $entity */
+    $entity = $this->entity;
+
+    return $this->getFormStateValue(
+      'payload_processor',
+      $form_state,
+      $entity->getPayloadProcessor(),
+    );
+  }
+
+  /**
+   * Runs the payload processor plugin's configuration form validation.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\PluginException
+   */
+  protected function validatePayloadProcessorConfigurationForm(
+    array &$form,
+    FormStateInterface $form_state,
+  ): void {
+    $selectedProcessor = $this->resolveSelectedPayloadProcessor($form_state);
+
+    if (
+      $selectedProcessor === NULL
+      || $selectedProcessor === ''
+      || !isset($form['payload_processing']['payload_processor_config'])
+    ) {
+      return;
+    }
+
+    $config = $this->resolvePayloadProcessorConfig($form_state);
+    $plugin = $this->payloadProcessorManager->createInstance($selectedProcessor, $config);
+
+    if ($plugin instanceof PluginFormInterface) {
+      $subform = ['#parents' => ['payload_processor_config']];
+      $subformState = SubformState::createForSubform(
+        $subform,
+        $form,
+        $form_state,
+      );
+      $plugin->validateConfigurationForm(
+        $form['payload_processing']['payload_processor_config'],
+        $subformState,
+      );
+    }
+  }
+
+  /**
+   * Runs the payload processor plugin's submit handler and updates form state.
+   *
+   * @param array $form
+   *   The form array.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @throws \Drupal\Component\Plugin\Exception\PluginException
+   */
+  protected function submitPayloadProcessorConfigurationForm(
+    array &$form,
+    FormStateInterface $form_state,
+  ): void {
+    $selectedProcessor = $this->resolveSelectedPayloadProcessor($form_state);
+
+    if (
+      $selectedProcessor === NULL
+      || $selectedProcessor === ''
+      || !isset($form['payload_processing']['payload_processor_config'])
+    ) {
+      $form_state->setValue('payload_processor_config', []);
+
+      return;
+    }
+
+    $config = $this->resolvePayloadProcessorConfig($form_state);
+    $plugin = $this->payloadProcessorManager->createInstance($selectedProcessor, $config);
+
+    if ($plugin instanceof WebhookPayloadProcessorInterface) {
+      $subform = ['#parents' => ['payload_processor_config']];
+      $subformState = SubformState::createForSubform(
+        $subform,
+        $form,
+        $form_state,
+      );
+      $plugin->submitConfigurationForm($subform, $subformState);
+
+      $form_state->setValue(
+        ['payload_processor_config'],
+        $plugin->getConfiguration(),
+      );
+    }
+  }
+
+  /**
+   * Resolves the payload processor config from form state or entity.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   *
+   * @return array<string, mixed>
+   *   The payload processor configuration array.
+   */
+  protected function resolvePayloadProcessorConfig(FormStateInterface $form_state): array {
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $entity */
+    $entity = $this->entity;
+
+    $formValue = $form_state->getValue(['payload_processor_config']);
+
+    if (is_array($formValue) && !empty($formValue)) {
+      return $formValue;
+    }
+
+    return $entity->getPayloadProcessorConfig();
+  }
+
+  /**
+   * Applies the payload processor plugin configuration to the entity.
+   *
+   * Reads the processed configuration from form state (set by
+   * submitPayloadProcessorConfigurationForm) and stores it on the entity.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The current form state.
+   */
+  protected function applyPayloadProcessorConfig(FormStateInterface $form_state): void {
+    /** @var \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $entity */
+    $entity = $this->entity;
+
+    $processor = trim((string) ($form_state->getValue('payload_processor') ?? ''));
+    $entity->set('payload_processor', $processor);
+
+    $config = $form_state->getValue(['payload_processor_config']) ?? [];
+    $entity->set('payload_processor_config', $config);
   }
 }

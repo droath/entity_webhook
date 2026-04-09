@@ -11,12 +11,14 @@ use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\entity_webhook\Event\EntityWebhookEvents;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Drupal\entity_webhook\Event\EntityWebhookPreSaveEvent;
+use Drupal\entity_webhook\Event\WebhookBatchCompleteEvent;
 use Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager;
 
 /**
  * Orchestrates the full entity upsert pipeline for a single queue item.
@@ -43,6 +45,8 @@ class WebhookProcessor implements WebhookProcessorInterface {
    *   The field value mutation plugin manager.
    * @param \Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface $resolverManager
    *   The value resolver plugin manager.
+   * @param \Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager $payloadProcessorManager
+   *   The webhook payload processor plugin manager.
    */
   public function __construct(
     protected readonly WebhookRequestValidatorInterface $validator,
@@ -51,6 +55,7 @@ class WebhookProcessor implements WebhookProcessorInterface {
     protected readonly EventDispatcherInterface $eventDispatcher,
     protected readonly FieldValueMutationManagerInterface $mutationManager,
     protected readonly ValueResolverManagerInterface $resolverManager,
+    protected readonly WebhookPayloadProcessorManager $payloadProcessorManager,
   ) {
   }
 
@@ -75,15 +80,114 @@ class WebhookProcessor implements WebhookProcessorInterface {
     }
 
     try {
-      return match ($sourceType->getOperation()) {
-        'delete' => $this->processDelete($endpoint, $sourceType, $item),
-        default => $this->processItem($endpoint, $sourceType, $item),
-      };
+      return $this->dispatchToOperation($endpoint, $sourceType, $item);
     } catch (\Throwable $e) {
       $this->logProcessingError($item, $e);
 
       return WebhookProcessResult::error($e->getMessage());
     }
+  }
+
+  /**
+   * Dispatches the queue item to the correct operation, with batch support.
+   *
+   * When the source type has a payload processor configured the raw payload is
+   * first split into one payload per record. Each derived payload is then
+   * processed individually and a BATCH_COMPLETE event is fired at the end.
+   * Without a processor configured the behaviour is identical to before this
+   * feature was introduced.
+   *
+   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint
+   *   The loaded endpoint config entity.
+   * @param \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $sourceType
+   *   The loaded source type config entity.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The original queue item.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   For batched processing: the result of the last sub-item, or an error
+   *   result when no payloads were produced. For single processing: the direct
+   *   result of the operation.
+   */
+  private function dispatchToOperation(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): WebhookProcessResult {
+    if ($sourceType->getPayloadProcessor() === '') {
+      return $this->runOperation($endpoint, $sourceType, $item);
+    }
+
+    return $this->processBatch($endpoint, $sourceType, $item);
+  }
+
+  /**
+   * Runs the configured operation for a single queue item.
+   *
+   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint
+   *   The loaded endpoint config entity.
+   * @param \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $sourceType
+   *   The loaded source type config entity.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The queue item to process.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   The processing outcome.
+   */
+  private function runOperation(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): WebhookProcessResult {
+    return match ($sourceType->getOperation()) {
+      'delete' => $this->processDelete($endpoint, $sourceType, $item),
+      default => $this->processItem($endpoint, $sourceType, $item),
+    };
+  }
+
+  /**
+   * Splits the payload via the configured processor and handles each sub-item.
+   *
+   * @param \Drupal\entity_webhook\Entity\WebhookEndpointInterface $endpoint
+   *   The loaded endpoint config entity.
+   * @param \Drupal\entity_webhook\Entity\WebhookSourceTypeInterface $sourceType
+   *   The loaded source type config entity.
+   * @param \Drupal\entity_webhook\Queue\WebhookQueueItem $item
+   *   The original queue item carrying the raw payload.
+   *
+   * @return \Drupal\entity_webhook\Service\WebhookProcessResult
+   *   The last successful result, or an error result when the processor
+   *   returned no payloads.
+   */
+  private function processBatch(WebhookEndpointInterface $endpoint, WebhookSourceTypeInterface $sourceType, WebhookQueueItem $item): WebhookProcessResult {
+    $processorPlugin = $this->payloadProcessorManager->createInstance(
+      $sourceType->getPayloadProcessor(),
+      $sourceType->getPayloadProcessorConfig(),
+    );
+
+    $payloads = $processorPlugin->process($item->payload, $sourceType->getPayloadProcessorConfig());
+
+    if (empty($payloads)) {
+      return WebhookProcessResult::error(
+        'Payload processor returned no payloads to the process.',
+      );
+    }
+
+    $results = [];
+    foreach ($payloads as $subPayload) {
+      $subItem = new WebhookQueueItem(
+        endpointId: $item->endpointId,
+        sourceType: $item->sourceType,
+        payload: $subPayload,
+        receivedAt: $item->receivedAt,
+        source: $item->source,
+      );
+      $results[] = $this->runOperation($endpoint, $sourceType, $subItem);
+    }
+
+    $this->eventDispatcher->dispatch(
+      new WebhookBatchCompleteEvent(
+        originalPayload: $item->payload,
+        sourceType: $item->sourceType,
+        endpointId: $item->endpointId,
+        results: $results,
+      ),
+      EntityWebhookEvents::BATCH_COMPLETE,
+    );
+
+    return end($results);
   }
 
   /**

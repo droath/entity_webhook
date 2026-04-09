@@ -61,6 +61,15 @@ entity_webhook.webhook_source_type.*:
       sequence:
         type: ignore
         label: 'Configuration value'
+    payload_processor:
+      type: string
+      label: 'Payload Processor Plugin ID'
+    payload_processor_config:
+      type: sequence
+      label: 'Payload Processor Plugin Configuration'
+      sequence:
+        type: ignore
+        label: 'Configuration value'
 
 entity_webhook.webhook_endpoint.*:
   type: config_entity

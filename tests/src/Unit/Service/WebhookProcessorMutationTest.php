@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\entity_webhook\Unit\Service;
 
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\entity_webhook\Entity\FieldMapping;
 use Drupal\entity_webhook\Entity\WebhookEndpointInterface;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
-use Drupal\entity_webhook\Queue\WebhookQueueItem;
-use Drupal\entity_webhook\Service\EntityUpsertServiceInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager;
+use Drupal\entity_webhook\Queue\WebhookQueueItem;
+use Drupal\entity_webhook\Service\EntityUpsertServiceInterface;
 use Drupal\entity_webhook\Service\WebhookProcessor;
 use Drupal\entity_webhook\Validator\WebhookRequestValidatorInterface;
 use Drupal\Tests\UnitTestCase;
@@ -59,7 +61,7 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $capturedValues = [];
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
-    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(\Drupal\Core\Entity\EntityInterface::class));
+    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(EntityInterface::class));
     $entityUpsert->method('applyFieldValues')
       ->willReturnCallback(function ($entity, $mappings, array $values) use (&$capturedValues): void {
         $capturedValues = $values;
@@ -106,7 +108,7 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $capturedValues = [];
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
-    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(\Drupal\Core\Entity\EntityInterface::class));
+    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(EntityInterface::class));
     $entityUpsert->method('applyFieldValues')
       ->willReturnCallback(function ($entity, $mappings, array $values) use (&$capturedValues): void {
         $capturedValues = $values;
@@ -147,7 +149,7 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $capturedValues = [];
     $entityUpsert = $this->createMock(EntityUpsertServiceInterface::class);
-    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(\Drupal\Core\Entity\EntityInterface::class));
+    $entityUpsert->method('resolveEntity')->willReturn($this->createMock(EntityInterface::class));
     $entityUpsert->method('applyFieldValues')
       ->willReturnCallback(function ($entity, $mappings, array $values) use (&$capturedValues): void {
         $capturedValues = $values;
@@ -196,6 +198,8 @@ class WebhookProcessorMutationTest extends UnitTestCase {
 
     $sourceType = $this->createMock(WebhookSourceTypeInterface::class);
     $sourceType->method('getFieldMappings')->willReturn([$mapping]);
+    $sourceType->method('getPayloadProcessor')->willReturn('');
+    $sourceType->method('getOperation')->willReturn('upsert');
 
     $validator = $this->createMock(WebhookRequestValidatorInterface::class);
     $validator->method('loadEndpoint')->willReturn($endpoint);
@@ -217,6 +221,7 @@ class WebhookProcessorMutationTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher,
       mutationManager: $mutationManager,
       resolverManager: $resolverManager,
+      payloadProcessorManager: $this->createMock(WebhookPayloadProcessorManager::class),
     );
   }
 

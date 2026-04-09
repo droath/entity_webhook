@@ -52,6 +52,8 @@ use Drupal\Core\Entity\Routing\AdminHtmlRouteProvider;
     'operation',
     'verification_plugin',
     'verification_config',
+    'payload_processor',
+    'payload_processor_config',
   ],
 )]
 class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInterface {
@@ -76,6 +78,16 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
    * @var array<string, mixed>
    */
   protected array $verification_config = [];
+
+  /** The payload processor plugin ID. */
+  protected string $payload_processor = '';
+
+  /**
+   * The payload processor plugin configuration.
+   *
+   * @var array<string, mixed>
+   */
+  protected array $payload_processor_config = [];
 
   /**
    * {@inheritdoc}
@@ -146,6 +158,20 @@ class WebhookSourceType extends ConfigEntityBase implements WebhookSourceTypeInt
    */
   public function getVerificationConfig(): array {
     return $this->verification_config;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPayloadProcessor(): string {
+    return $this->payload_processor;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPayloadProcessorConfig(): array {
+    return $this->payload_processor_config;
   }
 
   /**

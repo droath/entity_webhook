@@ -12,6 +12,7 @@ use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\entity_webhook\Service\EntityUpsertServiceInterface;
 use Drupal\entity_webhook\Service\WebhookProcessor;
@@ -33,16 +34,16 @@ class WebhookProcessorResultTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessReturnsErrorWhenEndpointNotFound(): void {
-    // Arrange
+    // Arrange.
     $validator = $this->createMock(WebhookRequestValidatorInterface::class);
     $validator->method('loadEndpoint')->willReturn(NULL);
 
     $processor = $this->buildProcessorWithValidator($validator);
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertFalse($result->success);
     $this->assertNotNull($result->error);
   }
@@ -53,7 +54,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessReturnsCreatedResultForNewEntity(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(TRUE);
     $entity->method('id')->willReturn('1');
@@ -73,10 +74,10 @@ class WebhookProcessorResultTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('created', $result->operation);
   }
@@ -87,7 +88,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessReturnsUpdatedResultForExistingEntity(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
     $entity->method('id')->willReturn('5');
@@ -107,10 +108,10 @@ class WebhookProcessorResultTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('updated', $result->operation);
   }
@@ -121,7 +122,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessReturnsSkippedWhenDeleteTargetNotFound(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(TRUE);
 
@@ -133,10 +134,10 @@ class WebhookProcessorResultTest extends UnitTestCase {
       entityUpsert: $entityUpsert,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('skipped', $result->operation);
   }
@@ -147,7 +148,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessReturnsDeletedResultWhenEntityDeleted(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
     $entity->method('id')->willReturn('9');
@@ -164,10 +165,10 @@ class WebhookProcessorResultTest extends UnitTestCase {
       entityUpsert: $entityUpsert,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('deleted', $result->operation);
   }
@@ -189,6 +190,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
       eventDispatcher: $this->createMock(EventDispatcherInterface::class),
       mutationManager: $this->createMock(FieldValueMutationManagerInterface::class),
       resolverManager: $this->createMock(ValueResolverManagerInterface::class),
+      payloadProcessorManager: $this->createMock(WebhookPayloadProcessorManager::class),
     );
   }
 
@@ -225,6 +227,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
     $sourceType = $this->createMock(WebhookSourceTypeInterface::class);
     $sourceType->method('getOperation')->willReturn($operation);
     $sourceType->method('getFieldMappings')->willReturn([$mapping]);
+    $sourceType->method('getPayloadProcessor')->willReturn('');
 
     $validator = $this->createMock(WebhookRequestValidatorInterface::class);
     $validator->method('loadEndpoint')->willReturn($endpoint);
@@ -248,6 +251,7 @@ class WebhookProcessorResultTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher ?? $defaultEventDispatcher,
       mutationManager: $mutationManager,
       resolverManager: $resolverManager,
+      payloadProcessorManager: $this->createMock(WebhookPayloadProcessorManager::class),
     );
   }
 

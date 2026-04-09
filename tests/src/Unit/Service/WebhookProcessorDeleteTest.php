@@ -12,6 +12,7 @@ use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Plugin\FieldValueMutation\FieldValueMutationManagerInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverInterface;
 use Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManagerInterface;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager;
 use Drupal\entity_webhook\Queue\WebhookQueueItem;
 use Drupal\entity_webhook\Service\EntityUpsertServiceInterface;
 use Drupal\entity_webhook\Service\WebhookProcessor;
@@ -36,7 +37,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessRoutesToDeleteWhenOperationIsDelete(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
     $entity->method('getEntityTypeId')->willReturn('node');
@@ -59,10 +60,10 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('deleted', $result->operation);
   }
@@ -76,7 +77,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessRoutesToUpsertWhenOperationIsUpsert(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
     $entity->method('id')->willReturn('3');
@@ -97,10 +98,10 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert — delete is never called and result reflects updated entity
+    // Assert — delete is never called and result reflects updated entity.
     $this->assertTrue($result->success);
     $this->assertSame('updated', $result->operation);
   }
@@ -115,7 +116,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessDeleteSkipsWhenEntityNotFound(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(TRUE);
     $entity->expects($this->never())->method('delete');
@@ -132,10 +133,10 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
       logger: $logger,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('skipped', $result->operation);
   }
@@ -149,7 +150,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
    * @covers ::process
    */
   public function testProcessDeleteDeletesExistingEntityAndReturnsDeletedResult(): void {
-    // Arrange
+    // Arrange.
     $entity = $this->createMock(EntityInterface::class);
     $entity->method('isNew')->willReturn(FALSE);
     $entity->method('getEntityTypeId')->willReturn('node');
@@ -170,10 +171,10 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
       logger: $logger,
     );
 
-    // Act
+    // Act.
     $result = $processor->process($this->buildQueueItem());
 
-    // Assert
+    // Assert.
     $this->assertTrue($result->success);
     $this->assertSame('deleted', $result->operation);
   }
@@ -214,6 +215,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
     $sourceType = $this->createMock(WebhookSourceTypeInterface::class);
     $sourceType->method('getOperation')->willReturn($operation);
     $sourceType->method('getFieldMappings')->willReturn([$mapping]);
+    $sourceType->method('getPayloadProcessor')->willReturn('');
 
     $validator = $this->createMock(WebhookRequestValidatorInterface::class);
     $validator->method('loadEndpoint')->willReturn($endpoint);
@@ -237,6 +239,7 @@ class WebhookProcessorDeleteTest extends UnitTestCase {
       eventDispatcher: $eventDispatcher ?? $defaultEventDispatcher,
       mutationManager: $mutationManager,
       resolverManager: $resolverManager,
+      payloadProcessorManager: $this->createMock(WebhookPayloadProcessorManager::class),
     );
   }
 

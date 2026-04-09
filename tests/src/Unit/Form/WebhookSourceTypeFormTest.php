@@ -10,6 +10,7 @@ use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\Tests\UnitTestCase;
 use Drupal\entity_webhook\Entity\WebhookSourceTypeInterface;
 use Drupal\entity_webhook\Form\WebhookSourceTypeForm;
+use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManagerInterface;
 use Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface;
 
 /**
@@ -24,19 +25,24 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
    *
    * @param \Drupal\entity_webhook\Plugin\WebhookVerification\WebhookVerificationManagerInterface|null $verificationManager
    *   Optional verification manager mock.
+   * @param \Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManagerInterface|null $payloadProcessorManager
+   *   Optional payload processor manager mock.
    *
    * @return \Drupal\entity_webhook\Form\WebhookSourceTypeForm
    *   The form instance.
    */
   private function createForm(
     ?WebhookVerificationManagerInterface $verificationManager = NULL,
+    ?WebhookPayloadProcessorManagerInterface $payloadProcessorManager = NULL,
   ): WebhookSourceTypeForm {
     $routeMatch = $this->createMock(RouteMatchInterface::class);
     $verificationManager ??= $this->createMock(WebhookVerificationManagerInterface::class);
+    $payloadProcessorManager ??= $this->createMock(WebhookPayloadProcessorManagerInterface::class);
 
     $form = new WebhookSourceTypeForm(
       $routeMatch,
       $verificationManager,
+      $payloadProcessorManager,
     );
 
     $translation = $this->createMock(TranslationInterface::class);
@@ -145,6 +151,84 @@ class WebhookSourceTypeFormTest extends UnitTestCase {
     $result = $this->callProtectedMethod($form, 'resolveVerificationConfig', [$formState]);
 
     $this->assertSame(['secret' => 'entity_secret'], $result);
+  }
+
+  /**
+   * Tests that resolveSelectedPayloadProcessor returns entity value when no user input.
+   */
+  public function testResolveSelectedPayloadProcessorReturnsEntityValueWhenNoUserInput(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getPayloadProcessor')->willReturn('array_iterator');
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getUserInput')->willReturn([]);
+    $formState->method('getValue')->willReturn(NULL);
+
+    $result = $this->callProtectedMethod($form, 'resolveSelectedPayloadProcessor', [$formState]);
+
+    $this->assertSame('array_iterator', $result);
+  }
+
+  /**
+   * Tests that resolveSelectedPayloadProcessor prefers user input during AJAX rebuilds.
+   */
+  public function testResolveSelectedPayloadProcessorPrefersUserInputDuringAjaxRebuild(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getPayloadProcessor')->willReturn('');
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getUserInput')->willReturn(['payload_processor' => 'array_iterator']);
+    $formState->method('getValue')->willReturn(NULL);
+
+    $result = $this->callProtectedMethod($form, 'resolveSelectedPayloadProcessor', [$formState]);
+
+    $this->assertSame('array_iterator', $result);
+  }
+
+  /**
+   * Tests that resolvePayloadProcessorConfig returns form state value when non-empty.
+   */
+  public function testResolvePayloadProcessorConfigReturnsFormStateValueWhenNonEmpty(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getPayloadProcessorConfig')->willReturn(['path' => '$.entity_path']);
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getValue')->willReturnMap([
+      [['payload_processor_config'], NULL, ['path' => '$.form_path']],
+    ]);
+
+    $result = $this->callProtectedMethod($form, 'resolvePayloadProcessorConfig', [$formState]);
+
+    $this->assertSame(['path' => '$.form_path'], $result);
+  }
+
+  /**
+   * Tests that resolvePayloadProcessorConfig falls back to entity config when form value is empty.
+   */
+  public function testResolvePayloadProcessorConfigFallsBackToEntityConfigWhenFormEmpty(): void {
+    $form = $this->createForm();
+
+    $entity = $this->createMock(WebhookSourceTypeInterface::class);
+    $entity->method('getPayloadProcessorConfig')->willReturn(['path' => '$.entity_path']);
+    $form->setEntity($entity);
+
+    $formState = $this->createMock(FormStateInterface::class);
+    $formState->method('getValue')->willReturnMap([
+      [['payload_processor_config'], NULL, []],
+    ]);
+
+    $result = $this->callProtectedMethod($form, 'resolvePayloadProcessorConfig', [$formState]);
+
+    $this->assertSame(['path' => '$.entity_path'], $result);
   }
 
   /**

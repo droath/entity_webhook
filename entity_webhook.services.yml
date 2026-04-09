@@ -41,6 +41,7 @@ services:
       - '@event_dispatcher'
       - '@plugin.manager.field_value_mutation'
       - '@plugin.manager.value_resolver'
+      - '@plugin.manager.webhook_payload_processor'
 
   entity_webhook.verification_chain:
     class: Drupal\entity_webhook\Service\VerificationChain
@@ -56,4 +57,8 @@ services:
 
   plugin.manager.value_resolver:
     class: Drupal\entity_webhook\Plugin\ValueResolver\ValueResolverManager
+    parent: default_plugin_manager
+
+  plugin.manager.webhook_payload_processor:
+    class: Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\WebhookPayloadProcessorManager
     parent: default_plugin_manager

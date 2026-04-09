@@ -33,4 +33,17 @@ final class EntityWebhookEvents {
    * @see \Drupal\entity_webhook\Event\EntityWebhookPostSaveEvent
    */
   public const POST_SAVE = 'entity_webhook.post_save';
+
+  /**
+   * Fired after all sub-payloads derived from a batch processor are processed.
+   *
+   * Only dispatched when the WebhookSourceType has a payload_processor
+   * configured. Subscribers can use this event to reconcile the full set of
+   * incoming records with the local data store (e.g., deleting stale entities).
+   *
+   * @Event
+   *
+   * @see \Drupal\entity_webhook\Event\WebhookBatchCompleteEvent
+   */
+  public const BATCH_COMPLETE = 'entity_webhook.batch_complete';
 }
