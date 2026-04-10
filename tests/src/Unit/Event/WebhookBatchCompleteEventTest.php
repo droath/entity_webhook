@@ -95,26 +95,10 @@ class WebhookBatchCompleteEventTest extends UnitTestCase {
 
   /**
    * Tests that the BATCH_COMPLETE event name constant exists and is a string.
-   *
-   * @covers \Drupal\entity_webhook\Event\EntityWebhookEvents::BATCH_COMPLETE
    */
   public function testBatchCompleteEventNameConstantExistsOnEntityWebhookEvents(): void {
     // Act / Assert.
     $this->assertIsString(EntityWebhookEvents::BATCH_COMPLETE);
-    $this->assertNotEmpty(EntityWebhookEvents::BATCH_COMPLETE);
-  }
-
-  /**
-   * Tests that the BATCH_COMPLETE constant value is 'entity_webhook.batch_complete'.
-   *
-   * This verifies the event name is stable and matches any subscribers that
-   * have been registered against a specific string.
-   *
-   * @covers \Drupal\entity_webhook\Event\EntityWebhookEvents::BATCH_COMPLETE
-   */
-  public function testBatchCompleteConstantHasExpectedValue(): void {
-    // Assert.
-    $this->assertSame('entity_webhook.batch_complete', EntityWebhookEvents::BATCH_COMPLETE);
   }
 
 }

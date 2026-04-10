@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\entity_webhook\Plugin\WebhookPayloadProcessor\ArrayIteratorProcessor;
 use Drupal\entity_webhook\Service\JsonPathExtractorInterface;
 use Drupal\Tests\UnitTestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Unit tests for the ArrayIteratorProcessor plugin.
@@ -20,7 +21,7 @@ class ArrayIteratorProcessorTest extends UnitTestCase {
   /**
    * The JSONPath extractor mock.
    */
-  private JsonPathExtractorInterface $jsonPathExtractor;
+  private MockObject&JsonPathExtractorInterface $jsonPathExtractor;
 
   /**
    * {@inheritdoc}
